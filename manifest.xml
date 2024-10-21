@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<PluginManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Name>Se_web</Name>
+  <Guid>a15f3929-1d32-4ada-a752-7223a98ee115</Guid>
+  <Repository>Se_web</Repository>
+  <Version>v1.0.0</Version>
+</PluginManifest>
