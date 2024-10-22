@@ -10,11 +10,12 @@ namespace TorchPlugin
     {
         private bool enabled = true;
         private bool detectCodeChanges = true;
-        // TODO: Implement your config fields and add the default values for Torch here.
-        //       Be more conservative with changes and introduce new features as disabled
-        //       at first, so admins can enable them first on their test deployments.
-        //       Once the feature is stable set the default here to true to enable for
-        //       newly created Torch deployments.
+
+        // 데이터베이스 설정 추가
+        private string databaseServer = "localhost";
+        private string databaseName = "mydatabase";
+        private string databaseUser = "root";
+        private string databasePassword = "my-secret-pw";
 
         [Display(Order = 1, GroupName = "General", Name = "Enable plugin", Description = "Enable the plugin")]
         public bool Enabled
@@ -30,6 +31,37 @@ namespace TorchPlugin
             set => SetValue(ref detectCodeChanges, value);
         }
 
+        // 데이터베이스 서버 주소 설정
+        [Display(Order = 3, GroupName = "Database Settings", Name = "Database Server", Description = "The IP address or hostname of the MySQL server")]
+        public string DatabaseServer
+        {
+            get => databaseServer;
+            set => SetValue(ref databaseServer, value);
+        }
+
+        // 데이터베이스 이름 설정
+        [Display(Order = 4, GroupName = "Database Settings", Name = "Database Name", Description = "The name of the MySQL database")]
+        public string DatabaseName
+        {
+            get => databaseName;
+            set => SetValue(ref databaseName, value);
+        }
+
+        // 데이터베이스 사용자 이름 설정
+        [Display(Order = 5, GroupName = "Database Settings", Name = "Database User", Description = "The username for the MySQL database")]
+        public string DatabaseUser
+        {
+            get => databaseUser;
+            set => SetValue(ref databaseUser, value);
+        }
+
+        // 데이터베이스 비밀번호 설정
+        [Display(Order = 6, GroupName = "Database Settings", Name = "Database Password", Description = "The password for the MySQL database")]
+        public string DatabasePassword
+        {
+            get => databasePassword;
+            set => SetValue(ref databasePassword, value);
+        }
         // TODO: Encapsulate them as properties and define their Display properties
     }
 }

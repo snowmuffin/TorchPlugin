@@ -1,8 +1,11 @@
+using Sandbox.Definitions;
 using Shared.Config;
 using Shared.Plugin;
 using Torch.Commands;
 using Torch.Commands.Permissions;
+using VRage.Game;
 using VRage.Game.ModAPI;
+using VRage.ObjectBuilders;
 
 namespace TorchPlugin
 {
@@ -45,7 +48,17 @@ namespace TorchPlugin
         private static string Format(bool value) => value ? "Yes" : "No";
 
         // Custom parsers
+        private string GetConnectionString()
+        {
+            var config = Plugin.Instance.Config;
 
+            string server = config.DatabaseServer;
+            string database = config.DatabaseName;
+            string user = config.DatabaseUser;
+            string password = config.DatabasePassword;
+
+            return $"Server={server};Database={database};Uid={user};Pwd={password};";
+        }
         private static bool TryParseBool(string text, out bool result)
         {
             switch (text.ToLower())
@@ -117,6 +130,66 @@ namespace TorchPlugin
             // TODO: Process command parameters (for example name and value)
 
             RespondWithInfo();
+        }
+
+        // New command to give item to player's inventory
+        [Command("cmd giveitem", "Se_web: Gives the specified item to the player")]
+        [Permission(MyPromoteLevel.Admin)]
+        public void GiveItem(string itemName, int quantity = 1)
+        {
+            if (Context.Player == null)
+            {
+                Respond("This command can only be used by a player.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(itemName))
+            {
+                Respond("You must specify an item name.");
+                return;
+            }
+
+            if (quantity <= 0)
+            {
+                Respond("Quantity must be a positive integer.");
+                return;
+            }
+
+            var player = Context.Player;
+            var inventory = player.Character?.GetInventory() as IMyInventory;
+
+            if (inventory == null)
+            {
+                Respond("Could not access your inventory.");
+                return;
+            }
+
+            // Find the item definition
+            var itemDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), itemName)) ??
+                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ingot), itemName)) ??
+                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ore), itemName)) ??
+                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_PhysicalGunObject), itemName)) ??
+                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_PhysicalObject), itemName));
+
+            if (itemDefinition == null)
+            {
+                Respond($"Item '{itemName}' not found.");
+                return;
+            }
+
+            var amount = (VRage.MyFixedPoint)quantity;
+            var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
+
+            // Add the item to the inventory
+            if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
+            {
+                inventory.AddItems(amount, content);
+                Respond($"Added {quantity}x {itemDefinition.DisplayNameText} to your inventory.");
+            }
+            else
+            {
+                Respond("Not enough space in your inventory.");
+            }
         }
     }
 }

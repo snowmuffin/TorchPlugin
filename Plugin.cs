@@ -7,6 +7,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 using HarmonyLib;
 using MySql.Data.MySqlClient;
@@ -28,6 +29,7 @@ using Torch.Session;
 using VRage.Game.Entity;
 using VRage.Game.ModAPI;
 using VRage.ModAPI;
+using VRage.ObjectBuilders;
 using VRage.Utils;
 
 namespace TorchPlugin
@@ -35,6 +37,7 @@ namespace TorchPlugin
     // ReSharper disable once ClassNeverInstantiated.Global
     public class Plugin : TorchPluginBase, IWpfPlugin, ICommonPlugin
     {
+        private static readonly HttpClient httpClient = new HttpClient();
         public const string PluginName = "Se_web";
         public static Plugin Instance { get; private set; }
         public List<string> PointBlock = new List<string> { "MyObjectBuilder_Beacon", "MyObjectBuilder_InteriorTurret", "MyObjectBuilder_LargeMissileTurret", "MyObjectBuilder_SmallMissileLauncher", "MyObjectBuilder_SmallMissileLauncherReload", "MyObjectBuilder_LargeGatlingTurret", "MyObjectBuilder_SmallGatlingGun" };
@@ -44,10 +47,7 @@ namespace TorchPlugin
 
         private static readonly IPluginLogger Logger = new PluginLogger("Se_web");
         public IPluginLogger Log => Logger;
-        private static readonly HttpClient httpClient = new HttpClient(); // HttpClient는 재사용 가능하도록 static으로 선언
-        private static readonly List<object> damageLogQueue = new List<object>(); // 배치 처리 큐
-        private static readonly object queueLock = new object();
-        private static readonly int batchSize = 10; // 배치로 처리할 크기 설정
+        
 
         public IPluginConfig Config => config?.Data;
         private PersistentConfig<PluginConfig> config;
@@ -61,6 +61,9 @@ namespace TorchPlugin
         private MySqlConnection connection;
         private bool initialized;
         private bool failed;
+        private Queue<object> damageLogQueue = new Queue<object>();
+        private readonly object queueLock = new object();
+
 
         // ReSharper disable once UnusedMember.Local
         private readonly Commands commands = new Commands();
@@ -107,7 +110,7 @@ namespace TorchPlugin
             {
                 connection.Open();
                 Log.Info("MySQL 데이터베이스에 연결되었습니다.");
-                string cmdText = "\r\n            CREATE TABLE IF NOT EXISTS damage_logs (\r\n                id INT AUTO_INCREMENT PRIMARY KEY,\r\n                steam_id BIGINT NOT NULL,\r\n                total_damage FLOAT NOT NULL,\r\n                UNIQUE KEY unique_steam_id (steam_id)\r\n            );\r\n        ";
+                string cmdText = "\r\n            CREATE TABLE IF NOT EXISTS damage_logs (\r\n                steam_id BIGINT NOT NULL,\r\n                total_damage FLOAT NOT NULL,\r\n                PRIMARY KEY (steam_id)\r\n            );\r\n        ";
                 using (MySqlCommand mySqlCommand = new MySqlCommand(cmdText, connection))
                 {
                     mySqlCommand.ExecuteNonQuery();
@@ -119,7 +122,6 @@ namespace TorchPlugin
                 Log.Info("MySQL 연결 오류: " + ex.Message);
             }
         }
-
         private void OnEntityDamaged(object target, ref MyDamageInformation info)
         {
             if (target == null || info.AttackerId == 0)
@@ -205,22 +207,18 @@ namespace TorchPlugin
                         }
                     }
                 }
-
-                double damageToApply = Math.Min(info.Amount, 5000) / 100;
+                
+                double damageToApply = Math.Min(info.Amount, 5000)/100;
                 var damageLog = new
                 {
-                    steam_id = num2,
-                    total_damage = damageToApply
+                    steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
+                    total_damage = damageToApply   // 피해량
                 };
 
-                // 큐에 로그 추가
+                // 큐에 추가 (스레드 안전을 위해 lock 사용)
                 lock (queueLock)
                 {
-                    damageLogQueue.Add(damageLog);
-                    if (damageLogQueue.Count >= batchSize)
-                    {
-                        SendDamageLogsBatchAsync();
-                    }
+                    damageLogQueue.Enqueue(damageLog);
                 }
             }
             catch (Exception ex)
@@ -234,6 +232,7 @@ namespace TorchPlugin
                 }
             }
         }
+
         private bool IsSupportedBlock(IMyCubeBlock block)
         {
             string SubtypeName = block.BlockDefinition.SubtypeName;
@@ -255,11 +254,9 @@ namespace TorchPlugin
 
             return true;
         }
-       
-        // 비동기적으로 피해 로그 배치 전송
-        private async void SendDamageLogsBatchAsync()
+        private async Task SendDamageLogsBatchAsync()
         {
-            Log.Info("SendDamageLogsBatchAsync: Method called.");
+            
             List<object> batch;
             lock (queueLock)
             {
@@ -277,8 +274,8 @@ namespace TorchPlugin
                 string json = JsonConvert.SerializeObject(batch);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                // Nginx 서버로 비동기 POST 요청 보내기
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost/api/damage_logs", content);
+                // Nginx 서버를 통해 Node.js 서버로 비동기 POST 요청 보내기
+                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/damage_logs", content);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -344,6 +341,7 @@ namespace TorchPlugin
             {
                 CustomUpdate();
                 Tick++;
+                Task.Run(() => SendDamageLogsBatchAsync());
             }
             catch (Exception e)
             {
