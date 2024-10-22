@@ -37,40 +37,60 @@ namespace TorchPlugin
     // ReSharper disable once ClassNeverInstantiated.Global
     public class Plugin : TorchPluginBase, IWpfPlugin, ICommonPlugin
     {
-        private static readonly HttpClient httpClient = new HttpClient();
+        // Constants
         public const string PluginName = "Se_web";
-        public static Plugin Instance { get; private set; }
-        public List<string> PointBlock = new List<string> { "MyObjectBuilder_Beacon", "MyObjectBuilder_InteriorTurret", "MyObjectBuilder_LargeMissileTurret", "MyObjectBuilder_SmallMissileLauncher", "MyObjectBuilder_SmallMissileLauncherReload", "MyObjectBuilder_LargeGatlingTurret", "MyObjectBuilder_SmallGatlingGun" };
-        public long Tick { get; private set; }
         private const ushort MessageId = 5363;
-        private ConcurrentDictionary<long, Logic> m_cachedBlocks = new ConcurrentDictionary<long, Logic>();
+        private const string ConfigFileName = PluginName + ".cfg";
+        private const string ConnectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
 
-        private static readonly IPluginLogger Logger = new PluginLogger("Se_web");
-        public IPluginLogger Log => Logger;
-        
+        // Static Fields
+        public static Plugin Instance { get; private set; }
+        private static readonly HttpClient HttpClient = new HttpClient();
+        private static readonly IPluginLogger Logger = new PluginLogger(PluginName);
 
-        public IPluginConfig Config => config?.Data;
+        // Properties
+        public IPluginLogger Log
+        {
+            get { return Logger; }
+        }
 
-        
-        public string ConnectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
-        private PersistentConfig<PluginConfig> config;
-        private static readonly string ConfigFileName = $"{PluginName}.cfg";
+        public IPluginConfig Config
+        {
+            get { return _config != null ? _config.Data : null; }
+        }
 
-        // ReSharper disable once UnusedMember.Global
-        public UserControl GetControl() => control ?? (control = new ConfigView());
-        private ConfigView control;
+        public long Tick { get; private set; }
 
-        private TorchSessionManager sessionManager;
-        private MySqlConnection connection;
-        private bool initialized;
-        private bool failed;
-        private Queue<object> damageLogQueue = new Queue<object>();
-        private readonly object queueLock = new object();
+        // Private Fields
+        private PersistentConfig<PluginConfig> _config;
+        private ConfigView _control;
+        private TorchSessionManager _sessionManager;
+        private MySqlConnection _connection;
+        private bool _initialized;
+        private bool _failed;
 
+        private readonly object _queueLock = new object();
+        private readonly Queue<object> _damageLogQueue = new Queue<object>();
+        private readonly List<string> _pointBlockTypes = new List<string>
+        {
+            "MyObjectBuilder_Beacon",
+            "MyObjectBuilder_InteriorTurret",
+            "MyObjectBuilder_LargeMissileTurret",
+            "MyObjectBuilder_SmallMissileLauncher",
+            "MyObjectBuilder_SmallMissileLauncherReload",
+            "MyObjectBuilder_LargeGatlingTurret",
+            "MyObjectBuilder_SmallGatlingGun"
+        };
 
-        // ReSharper disable once UnusedMember.Local
-        private readonly Commands commands = new Commands();
-        
+        // Commands Instance
+        private readonly Commands _commands = new Commands();
+
+        // IWpfPlugin Implementation
+        public UserControl GetControl()
+        {
+            return _control ?? (_control = new ConfigView());
+        }
+
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         public override void Init(ITorchBase torch)
         {
@@ -82,281 +102,286 @@ namespace TorchPlugin
 #endif
 
             Instance = this;
+            Log.Info("Initializing Plugin...");
 
-            Log.Info("Init");
             ConnectToDatabase();
-            var configPath = Path.Combine(StoragePath, ConfigFileName);
-            config = PersistentConfig<PluginConfig>.Load(Log, configPath);
 
-            var gameVersionNumber = MyPerGameSettings.BasicGameInfo.GameVersion ?? 0;
-            var gameVersion = new StringBuilder(MyBuildNumbers.ConvertBuildNumberFromIntToString(gameVersionNumber)).ToString();
+            var configPath = Path.Combine(StoragePath, ConfigFileName);
+            _config = PersistentConfig<PluginConfig>.Load(Log, configPath);
+
+            var gameVersionNumber = MyPerGameSettings.BasicGameInfo.GameVersion.HasValue ? MyPerGameSettings.BasicGameInfo.GameVersion.Value : 0;
+            var gameVersion = MyBuildNumbers.ConvertBuildNumberFromIntToString(gameVersionNumber).ToString();
             Common.SetPlugin(this, gameVersion, StoragePath);
 
 #if USE_HARMONY
             if (!PatchHelpers.HarmonyPatchAll(Log, new Harmony(Name)))
             {
-                failed = true;
+                _failed = true;
                 return;
             }
 #endif
 
-            sessionManager = torch.Managers.GetManager<TorchSessionManager>();
-            sessionManager.SessionStateChanged += SessionStateChanged;
+            _sessionManager = torch.Managers.GetManager<TorchSessionManager>();
+            _sessionManager.SessionStateChanged += SessionStateChanged;
 
-            initialized = true;
-        }
-        public void ConnectToDatabase()
-        {
-            string connectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
-            connection = new MySqlConnection(connectionString);
-            try
-            {
-                connection.Open();
-                Log.Info("MySQL 데이터베이스에 연결되었습니다.");
-                string cmdText = "\r\n            CREATE TABLE IF NOT EXISTS damage_logs (\r\n                steam_id BIGINT NOT NULL,\r\n                total_damage FLOAT NOT NULL,\r\n                PRIMARY KEY (steam_id)\r\n            );\r\n        ";
-                using (MySqlCommand mySqlCommand = new MySqlCommand(cmdText, connection))
-                {
-                    mySqlCommand.ExecuteNonQuery();
-                    Log.Info("테이블이 없을 경우 새로 생성되었습니다.");
-                }
-            }
-            catch (MySqlException ex)
-            {
-                Log.Info("MySQL 연결 오류: " + ex.Message);
-            }
-        }
-        private void OnEntityDamaged(object target, ref MyDamageInformation info)
-        {
-            if (target == null || info.AttackerId == 0)
-            {
-                return;
-            }
-            try
-            {
-                if (info.IsDeformation)
-                {
-                    return;
-                }
-                IMyEntity entityById = MyAPIGateway.Entities.GetEntityById(info.AttackerId);
-                if (entityById == null)
-                {
-                    Log.Info("OnEntityDamaged: Attacker entity is null, returning.");
-                    return;
-                }
-                IMySlimBlock val = (IMySlimBlock)((target is IMySlimBlock) ? target : null);
-                IMyCubeGrid val2 = (IMyCubeGrid)((target is IMyCubeGrid) ? target : null);
-                IMyCubeBlock val3 = ((val != null) ? val.FatBlock : null);
-                if (val3 == null || !IsSupportedBlock(val3))
-                {
-                    return;
-                }
-                long num = 0L;
-                num = ((IMyCubeBlock)val3).OwnerId;
-                if (num != 0)
-                {
-                    IMyFaction val4 = MyAPIGateway.Session.Factions.TryGetPlayerFaction(num);
-                    Log.Info("OnEntityDamaged: Faction: " + ((val4 != null) ? val4.Name : null));
-                    if (val4 == null || !val4.IsEveryoneNpc())
-                    {
-                        return;
-                    }
-                }
-                ulong num2 = 0uL;
-                long num3 = 0L;
-                MyCharacter val5 = (MyCharacter)(object)((entityById is MyCharacter) ? entityById : null);
-                MyCharacter val6 = val5;
-                if (val6 != null)
-                {
-                    Log.Info("OnEntityDamaged: Attacker is character. Display Name: " + ((MyEntity)val6).DisplayNameText);
-                    if (val6.ControllerInfo != null)
-                    {
-                        List<IMyPlayer> list = new List<IMyPlayer>();
-                        MyAPIGateway.Players.GetPlayers(list, (Func<IMyPlayer, bool>)null);
-                        foreach (IMyPlayer item in list)
-                        {
-                            if (item.Character == val6)
-                            {
-                                num2 = item.SteamUserId;
-                                break;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    IMyCubeGrid val7 = (IMyCubeGrid)(object)((entityById is IMyCubeGrid) ? entityById : null);
-                    if (val7 != null)
-                    {
-                        num3 = ((val7.BigOwners.Count > 0) ? val7.BigOwners[0] : 0);
-                        num2 = MyAPIGateway.Players.TryGetSteamId(num3);
-                    }
-                    else
-                    {
-                        IMyCubeBlock val8 = (IMyCubeBlock)(object)((entityById is IMyCubeBlock) ? entityById : null);
-                        if (val8 != null)
-                        {
-                            num3 = ((IMyCubeBlock)val8).OwnerId;
-                            num2 = MyAPIGateway.Players.TryGetSteamId(num3);
-                        }
-                        else
-                        {
-                            IMyGunBaseUser val9 = (IMyGunBaseUser)(object)((entityById is IMyGunBaseUser) ? entityById : null);
-                            if (val9 == null)
-                            {
-                                return;
-                            }
-                            num3 = val9.OwnerId;
-                            num2 = MyAPIGateway.Players.TryGetSteamId(num3);
-                        }
-                    }
-                }
-                
-                double damageToApply = Math.Min(info.Amount, 5000)/100;
-                var damageLog = new
-                {
-                    steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
-                    total_damage = damageToApply   // 피해량
-                };
-
-                // 큐에 추가 (스레드 안전을 위해 lock 사용)
-                lock (queueLock)
-                {
-                    damageLogQueue.Enqueue(damageLog);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Info("Exception: " + ex.Message);
-                Log.Info("Stack Trace: " + ex.StackTrace);
-                if (ex.InnerException != null)
-                {
-                    Log.Info("Inner Exception: " + ex.InnerException.Message);
-                    Log.Info("Inner Stack Trace: " + ex.InnerException.StackTrace);
-                }
-            }
-        }
-
-        private bool IsSupportedBlock(IMyCubeBlock block)
-        {
-            string SubtypeName = block.BlockDefinition.SubtypeName;
-            string SubtypeId = block.BlockDefinition.SubtypeId;
-
-
-            string TypeIdString = block.BlockDefinition.TypeIdString;
-            string TypeIdStringAttribute = block.BlockDefinition.TypeIdStringAttribute;
-            string SubtypeIdAttribute = block.BlockDefinition.SubtypeIdAttribute;
-
-            Log.Info($"SubtypeName:{SubtypeName}\nSubtypeId:{SubtypeId}\nTypeIdString:{TypeIdString}\nTypeIdStringAttribute:{TypeIdStringAttribute}\nSubtypeIdAttribute:{SubtypeIdAttribute}\n");
-
-            if (!PointBlock.Contains(TypeIdString))
-            {
-
-                return false;
-            }
-
-
-            return true;
-        }
-        private async Task SendDamageLogsBatchAsync()
-        {
-            
-            List<object> batch;
-            lock (queueLock)
-            {
-                batch = new List<object>(damageLogQueue);
-                damageLogQueue.Clear();
-            }
-
-            if (batch.Count == 0)
-            {
-                return;
-            }
-
-            try
-            {
-                string json = JsonConvert.SerializeObject(batch);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                // Nginx 서버를 통해 Node.js 서버로 비동기 POST 요청 보내기
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/damage_logs", content);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    Log.Info($"SendDamageLogsBatchAsync: Damage logs batch successfully sent to Node.js server. Count: {batch.Count}");
-                }
-                else
-                {
-                    Log.Info($"SendDamageLogsBatchAsync: Failed to send damage logs batch. Status Code: {response.StatusCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Info("Exception while sending damage logs batch: " + ex.Message);
-                Log.Info("Stack Trace: " + ex.StackTrace);
-            }
-        }
-        private void SessionStateChanged(ITorchSession session, TorchSessionState newstate)
-        {
-            switch (newstate)
-            {
-                case TorchSessionState.Loading:
-                    Log.Debug("Loading");
-                    break;
-
-                case TorchSessionState.Loaded:
-                    Log.Debug("Loaded");
-                    MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, new BeforeDamageApplied(OnEntityDamaged));
-                    break;
-
-                case TorchSessionState.Unloading:
-                    Log.Debug("Unloading");
-                    break;
-
-                case TorchSessionState.Unloaded:
-                    Log.Debug("Unloaded");
-                    break;
-            }
+            _initialized = true;
+            Log.Info("Plugin Initialized Successfully.");
         }
 
         public override void Dispose()
         {
-            if (initialized)
+            if (_initialized)
             {
-                Log.Debug("Disposing");
+                Log.Info("Disposing Plugin...");
 
-                sessionManager.SessionStateChanged -= SessionStateChanged;
-                sessionManager = null;
+                _sessionManager.SessionStateChanged -= SessionStateChanged;
+                _sessionManager = null;
 
-                Log.Debug("Disposed");
+                if (_connection != null)
+                {
+                    _connection.Close();
+                    _connection = null;
+                }
+
+                _initialized = false;
+                Log.Info("Plugin Disposed.");
             }
 
             Instance = null;
-
             base.Dispose();
         }
 
         public override void Update()
         {
-            if (failed)
+            if (_failed)
                 return;
 
             try
             {
                 CustomUpdate();
                 Tick++;
+
+                // Asynchronously send damage logs
                 Task.Run(() => SendDamageLogsBatchAsync());
             }
             catch (Exception e)
             {
                 Log.Critical(e, "Update failed");
-                failed = true;
+                _failed = true;
             }
         }
 
+        #region Database Connection
+
+        private void ConnectToDatabase()
+        {
+            try
+            {
+                _connection = new MySqlConnection(ConnectionString);
+                _connection.Open();
+                Log.Info("Connected to MySQL database.");
+
+                // Create table if it doesn't exist
+                string createTableQuery = @"
+                    CREATE TABLE IF NOT EXISTS damage_logs (
+                        steam_id BIGINT NOT NULL,
+                        total_damage FLOAT NOT NULL,
+                        PRIMARY KEY (steam_id)
+                    );
+                ";
+
+                using (var command = new MySqlCommand(createTableQuery, _connection))
+                {
+                    command.ExecuteNonQuery();
+                    Log.Info("Table 'damage_logs' is ready.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                Log.Error("MySQL connection error: " + ex.Message);
+                _failed = true;
+            }
+        }
+
+        #endregion
+
+        #region Session Events
+
+        private void SessionStateChanged(ITorchSession session, TorchSessionState newState)
+        {
+            switch (newState)
+            {
+                case TorchSessionState.Loading:
+                    Log.Debug("Session Loading");
+                    break;
+
+                case TorchSessionState.Loaded:
+                    Log.Debug("Session Loaded");
+                    MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, OnEntityDamaged);
+                    break;
+
+                case TorchSessionState.Unloading:
+                    Log.Debug("Session Unloading");
+                    break;
+
+                case TorchSessionState.Unloaded:
+                    Log.Debug("Session Unloaded");
+                    break;
+            }
+        }
+
+        #endregion
+
+        #region Damage Handling
+
+        private void OnEntityDamaged(object target, ref MyDamageInformation info)
+        {
+            if (target == null || info.AttackerId == 0)
+                return;
+
+            try
+            {
+                if (info.IsDeformation)
+                    return;
+
+                var attackerEntity = MyAPIGateway.Entities.GetEntityById(info.AttackerId);
+                if (attackerEntity == null)
+                {
+                    Log.Info("Attacker entity is null, skipping.");
+                    return;
+                }
+
+                var slimBlock = target as IMySlimBlock;
+                var cubeBlock = slimBlock != null ? slimBlock.FatBlock : null;
+
+                if (cubeBlock == null || !IsSupportedBlock(cubeBlock))
+                    return;
+
+                // Check if the damaged block belongs to an NPC faction
+                long ownerId = cubeBlock.OwnerId;
+                if (ownerId != 0)
+                {
+                    var faction = MyAPIGateway.Session.Factions.TryGetPlayerFaction(ownerId);
+                    if (faction == null || !faction.IsEveryoneNpc())
+                        return;
+                }
+
+                ulong steamId = GetAttackerSteamId(attackerEntity);
+                if (steamId == 0)
+                    return;
+
+                // Calculate the damage to apply (capped at 50)
+                double damageToApply = Math.Min(info.Amount, 5000) / 100;
+
+                // Create damage log entry
+                var damageLog = new
+                {
+                    steam_id = steamId.ToString(),
+                    total_damage = damageToApply
+                };
+
+                // Enqueue damage log entry (thread-safe)
+                lock (_queueLock)
+                {
+                    _damageLogQueue.Enqueue(damageLog);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Exception in OnEntityDamaged: " + ex.Message);
+                Log.Error("Stack Trace: " + ex.StackTrace);
+            }
+        }
+
+        private bool IsSupportedBlock(IMyCubeBlock block)
+        {
+            string typeIdString = block.BlockDefinition.TypeIdString;
+            Log.Debug("Checking block type: " + typeIdString);
+
+            return _pointBlockTypes.Contains(typeIdString);
+        }
+
+        private ulong GetAttackerSteamId(IMyEntity attackerEntity)
+        {
+            ulong steamId = 0;
+            long ownerId = 0;
+
+            if (attackerEntity is MyCharacter character)
+            {
+                Log.Debug("Attacker is character: " + character.DisplayNameText);
+                var player = MyAPIGateway.Players.GetPlayerControllingEntity(character);
+                if (player != null)
+                    steamId = player.SteamUserId;
+            }
+            else if (attackerEntity is IMyCubeGrid grid)
+            {
+                ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
+                steamId = MyAPIGateway.Players.TryGetSteamId(ownerId);
+            }
+            else if (attackerEntity is IMyCubeBlock cubeBlock)
+            {
+                ownerId = cubeBlock.OwnerId;
+                steamId = MyAPIGateway.Players.TryGetSteamId(ownerId);
+            }
+            else if (attackerEntity is IMyGunBaseUser gunUser)
+            {
+                ownerId = gunUser.OwnerId;
+                steamId = MyAPIGateway.Players.TryGetSteamId(ownerId);
+            }
+            else
+            {
+                Log.Debug("Attacker entity type not recognized.");
+            }
+
+            return steamId;
+        }
+
+        private async Task SendDamageLogsBatchAsync()
+        {
+            List<object> batch;
+            lock (_queueLock)
+            {
+                batch = new List<object>(_damageLogQueue);
+                _damageLogQueue.Clear();
+            }
+
+            if (batch.Count == 0)
+                return;
+
+            try
+            {
+                string json = JsonConvert.SerializeObject(batch);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                // Send POST request to the server
+                HttpResponseMessage response = await HttpClient.PostAsync("http://localhost:3000/api/damage_logs", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Log.Info("Damage logs batch sent successfully. Count: " + batch.Count);
+                }
+                else
+                {
+                    Log.Info("Failed to send damage logs batch. Status Code: " + response.StatusCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Exception while sending damage logs batch: " + ex.Message);
+                Log.Error("Stack Trace: " + ex.StackTrace);
+            }
+        }
+
+        #endregion
+
+        #region Custom Update
+
         private void CustomUpdate()
         {
-            // TODO: Put your update processing here. It is called on every simulation frame!
+            // Custom update logic (called every simulation frame)
             PatchHelpers.PatchUpdates();
         }
+
+        #endregion
     }
 }
