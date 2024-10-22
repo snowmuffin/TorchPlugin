@@ -1,6 +1,9 @@
+using MySql.Data.MySqlClient;
 using Sandbox.Definitions;
 using Shared.Config;
 using Shared.Plugin;
+using System;
+using System.Collections.Generic;
 using Torch.Commands;
 using Torch.Commands.Permissions;
 using VRage.Game;
@@ -42,23 +45,108 @@ namespace TorchPlugin
             // For example:
             //Respond($"custom_setting: {Format(config.CustomSetting)}");
         }
-
+        public string connectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
         // Custom formatters
+        private void RespondWithPlayerData(ulong steamId)
+        {
+            try
+            {
+                using (var connection = new MySqlConnection(Plugin.Instance.ConnectionString))
+                {
+                    connection.Open();
 
+                    string query = "SELECT total_damage FROM damage_logs WHERE steam_id = @steamid";
+                    using (var command = new MySqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@steamid", steamId);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                float totalDamage = reader.GetFloat("total_damage");
+                                Respond($"Steam ID: {steamId}, Total Damage: {totalDamage}");
+                            }
+                            else
+                            {
+                                Respond($"No data found for Steam ID: {steamId}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Respond($"Error retrieving data: {ex.Message}");
+            }
+        }
+ 
+        [Command("cmd mydata", "Se_web: Shows the player's damage data")]
+        [Permission(MyPromoteLevel.None)]
+        public void MyData()
+        {
+            // 플레이어의 Steam ID 가져오기
+            var player = Context.Player;
+            if (player == null)
+            {
+                Respond("Command can only be run by a player.");
+                return;
+            }
+
+            ulong steamId = player.SteamUserId;
+            RespondWithPlayerData(steamId);
+        }
+        private void RespondWithTopPlayers(int limit = 10)
+        {
+            try
+            {
+                using (var connection = new MySqlConnection(Plugin.Instance.ConnectionString))
+                {
+                    connection.Open();
+
+                    string query = $"SELECT steam_id, total_damage FROM damage_logs ORDER BY total_damage DESC LIMIT @limit";
+                    using (var command = new MySqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@limit", limit);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            List<string> topPlayers = new List<string>();
+                            int rank = 1;
+
+                            while (reader.Read())
+                            {
+                                ulong steamId = reader.GetUInt64("steam_id");
+                                float totalDamage = reader.GetFloat("total_damage");
+                                topPlayers.Add($"{rank}. Steam ID: {steamId}, Damage: {totalDamage}");
+                                rank++;
+                            }
+
+                            if (topPlayers.Count > 0)
+                            {
+                                Respond("Top Players:");
+                                foreach (var player in topPlayers)
+                                {
+                                    Respond(player);
+                                }
+                            }
+                            else
+                            {
+                                Respond("No data found.");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Respond($"Error retrieving top players: {ex.Message}");
+            }
+        }
         private static string Format(bool value) => value ? "Yes" : "No";
 
         // Custom parsers
-        private string GetConnectionString()
-        {
-            var config = Plugin.Instance.Config;
 
-            string server = config.DatabaseServer;
-            string database = config.DatabaseName;
-            string user = config.DatabaseUser;
-            string password = config.DatabasePassword;
-
-            return $"Server={server};Database={database};Uid={user};Pwd={password};";
-        }
         private static bool TryParseBool(string text, out bool result)
         {
             switch (text.ToLower())
@@ -86,6 +174,12 @@ namespace TorchPlugin
             return false;
         }
 
+        [Command("cmd top", "Se_web: Shows the top players based on damage")]
+        [Permission(MyPromoteLevel.None)]
+        public void TopPlayers(int limit = 10)
+        {
+            RespondWithTopPlayers(limit);
+        }
         // ReSharper disable once UnusedMember.Global
 
         [Command("cmd help", "Se_web: Help")]
@@ -95,13 +189,7 @@ namespace TorchPlugin
             RespondWithHelp();
         }
 
-        // ReSharper disable once UnusedMember.Global
-        [Command("cmd info", "Se_web: Prints the current settings")]
-        [Permission(MyPromoteLevel.None)]
-        public void Info()
-        {
-            RespondWithInfo();
-        }
+
 
         // ReSharper disable once UnusedMember.Global
         [Command("cmd enable", "Se_web: Enables the plugin")]
@@ -121,75 +209,7 @@ namespace TorchPlugin
             RespondWithInfo();
         }
 
-        // TODO: Subcommand
-        // ReSharper disable once UnusedMember.Global
-        [Command("cmd subcmd", "Se_web: TODO: Subcommand")]
-        [Permission(MyPromoteLevel.Admin)]
-        public void SubCmd(string name, string value)
-        {
-            // TODO: Process command parameters (for example name and value)
-
-            RespondWithInfo();
-        }
-
-        // New command to give item to player's inventory
-        [Command("cmd giveitem", "Se_web: Gives the specified item to the player")]
-        [Permission(MyPromoteLevel.Admin)]
-        public void GiveItem(string itemName, int quantity = 1)
-        {
-            if (Context.Player == null)
-            {
-                Respond("This command can only be used by a player.");
-                return;
-            }
-
-            if (string.IsNullOrEmpty(itemName))
-            {
-                Respond("You must specify an item name.");
-                return;
-            }
-
-            if (quantity <= 0)
-            {
-                Respond("Quantity must be a positive integer.");
-                return;
-            }
-
-            var player = Context.Player;
-            var inventory = player.Character?.GetInventory() as IMyInventory;
-
-            if (inventory == null)
-            {
-                Respond("Could not access your inventory.");
-                return;
-            }
-
-            // Find the item definition
-            var itemDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), itemName)) ??
-                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ingot), itemName)) ??
-                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ore), itemName)) ??
-                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_PhysicalGunObject), itemName)) ??
-                                 MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_PhysicalObject), itemName));
-
-            if (itemDefinition == null)
-            {
-                Respond($"Item '{itemName}' not found.");
-                return;
-            }
-
-            var amount = (VRage.MyFixedPoint)quantity;
-            var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
-
-            // Add the item to the inventory
-            if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
-            {
-                inventory.AddItems(amount, content);
-                Respond($"Added {quantity}x {itemDefinition.DisplayNameText} to your inventory.");
-            }
-            else
-            {
-                Respond("Not enough space in your inventory.");
-            }
-        }
+    
+      
     }
 }

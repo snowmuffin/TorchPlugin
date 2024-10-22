@@ -50,6 +50,9 @@ namespace TorchPlugin
         
 
         public IPluginConfig Config => config?.Data;
+
+        
+        public string ConnectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
         private PersistentConfig<PluginConfig> config;
         private static readonly string ConfigFileName = $"{PluginName}.cfg";
 
@@ -67,7 +70,7 @@ namespace TorchPlugin
 
         // ReSharper disable once UnusedMember.Local
         private readonly Commands commands = new Commands();
-
+        
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         public override void Init(ITorchBase torch)
         {
