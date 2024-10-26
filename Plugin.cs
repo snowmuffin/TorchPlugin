@@ -207,7 +207,10 @@ namespace TorchPlugin
                         }
                     }
                 }
-
+                if(num2==0)
+                {
+                    return;
+                }
                 double damageToApply = Math.Min(info.Amount, 5000) / 100;
                 var damageLog = new
                 {

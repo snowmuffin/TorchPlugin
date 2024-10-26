@@ -314,6 +314,7 @@ namespace TorchPlugin
         {
             try
             {
+                ulong currentPlayerSteamId = Context.Player?.SteamUserId ?? 0;
                 using (var connection = new MySqlConnection(ConnectionString))
                 {
                     connection.Open();
@@ -332,7 +333,16 @@ namespace TorchPlugin
                             {
                                 ulong steamId = reader.GetUInt64("steam_id");
                                 float totalDamage = reader.GetFloat("total_damage");
-                                topPlayers.Add($"{rank}. Steam ID: {steamId}, Damage: {totalDamage}");
+                                // 현재 플레이어와 동일한 Steam ID인지 확인
+                                if (steamId == currentPlayerSteamId)
+                                {
+                                    // 본인인 경우 색상 강조 (HTML 태그를 이용하여 강조)
+                                    topPlayers.Add($"{rank}. [Color=Green] Damage: {totalDamage}[/Color]");
+                                }
+                                else
+                                {
+                                    topPlayers.Add($"{rank}. Damage: {totalDamage}");
+                                }
                                 rank++;
                             }
 
