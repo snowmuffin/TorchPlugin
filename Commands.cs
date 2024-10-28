@@ -337,7 +337,7 @@ namespace TorchPlugin
                                 if (steamId == currentPlayerSteamId)
                                 {
                                     // 본인인 경우 색상 강조 (HTML 태그를 이용하여 강조)
-                                    topPlayers.Add($"{rank}. [Color=Green] Damage: {totalDamage}[/Color]");
+                                    topPlayers.Add($"{rank}. *** Damage: {totalDamage} ***");
                                 }
                                 else
                                 {
