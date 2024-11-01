@@ -195,7 +195,7 @@ namespace TorchPlugin
                 var damageLog = new
                 {
                     steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
-                    total_damage = damageToApply   // 피해량
+                    damage = damageToApply   // 피해량
                 };
 
                 // 큐에 추가 (스레드 안전을 위해 lock 사용)

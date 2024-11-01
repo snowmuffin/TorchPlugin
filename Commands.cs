@@ -69,7 +69,50 @@ namespace TorchPlugin
             };
             Respond("Se_web commands:\n" + string.Join("\n", commands));
         }
+        [Command("cmd userdata", "Fetches and displays the user's data from online storage")]
+        [Permission(MyPromoteLevel.None)]
+        public async Task GetUserData()
+        {
+            var player = Context.Player;
+            if (player == null)
+            {
+                Respond("This command can only be used by a player.");
+                return;
+            }
 
+            var steamId = player.SteamUserId;
+            var requestPayload = new { steamId = steamId.ToString() };
+            var message = new StringContent(JsonConvert.SerializeObject(requestPayload), Encoding.UTF8, "application/json");
+
+            try
+            {
+                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/auth/getUserData", message);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Respond($"Failed to retrieve user data. Status Code: {response.StatusCode}, Reason: {response.ReasonPhrase}");
+                    return;
+                }
+
+                var jsonResponse = JObject.Parse(await response.Content.ReadAsStringAsync());
+                if (jsonResponse["status"].ToObject<int>() != 200)
+                {
+                    Respond("User data does not exist or authentication failed.");
+                    return;
+                }
+
+                var userData = jsonResponse["userData"];
+                Respond($"User Data for Steam ID {steamId}:\n" +
+                        $"- Name: {userData["name"]}\n" +
+                        $"- Level: {userData["level"]}\n" +
+                        $"- sek_coin: {userData["sek_coin"]}\n" +
+                        $"- Inventory Count: {userData["inventory_count"]}");
+            }
+            catch (Exception ex)
+            {
+                Respond($"An error occurred while retrieving user data: {ex.Message}");
+            }
+        }
         [Command("cmd info", "Se_web: Prints the current settings")]
         [Permission(MyPromoteLevel.None)]
         public void Info() => Respond($"{Plugin.PluginName} plugin is enabled: {Format(Config.Enabled)}");
