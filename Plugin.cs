@@ -58,7 +58,6 @@ namespace TorchPlugin
         private ConfigView control;
 
         private TorchSessionManager sessionManager;
-        private MySqlConnection connection;
         private bool initialized;
         private bool failed;
         private Queue<object> damageLogQueue = new Queue<object>();
@@ -81,7 +80,6 @@ namespace TorchPlugin
             Instance = this;
 
             Log.Info("Init");
-            ConnectToDatabase();
             var configPath = Path.Combine(StoragePath, ConfigFileName);
             config = PersistentConfig<PluginConfig>.Load(Log, configPath);
 
@@ -102,26 +100,8 @@ namespace TorchPlugin
 
             initialized = true;
         }
-        public void ConnectToDatabase()
-        {
-            string connectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
-            connection = new MySqlConnection(connectionString);
-            try
-            {
-                connection.Open();
-                Log.Info("MySQL 데이터베이스에 연결되었습니다.");
-                string cmdText = "\r\n            CREATE TABLE IF NOT EXISTS damage_logs (\r\n                steam_id BIGINT NOT NULL,\r\n                total_damage FLOAT NOT NULL,\r\n                PRIMARY KEY (steam_id)\r\n            );\r\n        ";
-                using (MySqlCommand mySqlCommand = new MySqlCommand(cmdText, connection))
-                {
-                    mySqlCommand.ExecuteNonQuery();
-                    Log.Info("테이블이 없을 경우 새로 생성되었습니다.");
-                }
-            }
-            catch (MySqlException ex)
-            {
-                Log.Info("MySQL 연결 오류: " + ex.Message);
-            }
-        }
+
+
         private void OnEntityDamaged(object target, ref MyDamageInformation info)
         {
             if (target == null || info.AttackerId == 0)
@@ -137,7 +117,7 @@ namespace TorchPlugin
                 IMyEntity entityById = MyAPIGateway.Entities.GetEntityById(info.AttackerId);
                 if (entityById == null)
                 {
-                    Log.Info("OnEntityDamaged: Attacker entity is null, returning.");
+
                     return;
                 }
                 IMySlimBlock val = (IMySlimBlock)((target is IMySlimBlock) ? target : null);
@@ -152,7 +132,7 @@ namespace TorchPlugin
                 if (num != 0)
                 {
                     IMyFaction val4 = MyAPIGateway.Session.Factions.TryGetPlayerFaction(num);
-                    Log.Info("OnEntityDamaged: Faction: " + ((val4 != null) ? val4.Name : null));
+                
                     if (val4 == null || !val4.IsEveryoneNpc())
                     {
                         return;
@@ -164,7 +144,7 @@ namespace TorchPlugin
                 MyCharacter val6 = val5;
                 if (val6 != null)
                 {
-                    Log.Info("OnEntityDamaged: Attacker is character. Display Name: " + ((MyEntity)val6).DisplayNameText);
+                    
                     if (val6.ControllerInfo != null)
                     {
                         List<IMyPlayer> list = new List<IMyPlayer>();
@@ -246,7 +226,7 @@ namespace TorchPlugin
             string TypeIdStringAttribute = block.BlockDefinition.TypeIdStringAttribute;
             string SubtypeIdAttribute = block.BlockDefinition.SubtypeIdAttribute;
 
-            Log.Info($"SubtypeName:{SubtypeName}\nSubtypeId:{SubtypeId}\nTypeIdString:{TypeIdString}\nTypeIdStringAttribute:{TypeIdStringAttribute}\nSubtypeIdAttribute:{SubtypeIdAttribute}\n");
+        
 
             if (!PointBlock.Contains(TypeIdString))
             {
@@ -277,16 +257,16 @@ namespace TorchPlugin
                 string json = JsonConvert.SerializeObject(batch);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                // Nginx 서버를 통해 Node.js 서버로 비동기 POST 요청 보내기
+          
                 HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/damage_logs", content);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Log.Info($"SendDamageLogsBatchAsync: Damage logs batch successfully sent to Node.js server. Count: {batch.Count}");
+                    Log.Info($"SendBatchAsync: Damage logs batch successfully sent to Node.js server. Count: {batch.Count}");
                 }
                 else
                 {
-                    Log.Info($"SendDamageLogsBatchAsync: Failed to send damage logs batch. Status Code: {response.StatusCode}");
+                    Log.Info($"SendBatchAsync: Failed to send damage logs batch. Status Code: {response.StatusCode}");
                 }
             }
             catch (Exception ex)
@@ -306,10 +286,13 @@ namespace TorchPlugin
                 case TorchSessionState.Loaded:
                     Log.Debug("Loaded");
                     MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, new BeforeDamageApplied(OnEntityDamaged));
+                    session.Managers.GetManager<IMultiplayerManagerBase>().PlayerJoined += OnPlayerJoined;
                     break;
 
                 case TorchSessionState.Unloading:
                     Log.Debug("Unloading");
+
+                    session.Managers.GetManager<IMultiplayerManagerBase>().PlayerJoined -= OnPlayerJoined;
                     break;
 
                 case TorchSessionState.Unloaded:
@@ -352,6 +335,43 @@ namespace TorchPlugin
                 Log.Critical(e, "Update failed");
                 failed = true;
             }
+        }
+        private async Task OnPlayerJoinedAsync(IPlayer player)
+        {
+            Log.Info($"Player joined: {player.Name} (Steam ID: {player.SteamId})");
+            var uploadCall = new
+            {
+                steamid = player.SteamId.ToString(),
+                nickname = player.Name.ToString()
+            };
+
+            try
+            {
+
+                string json = JsonConvert.SerializeObject(uploadCall);
+                var message = new StringContent(json, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/user/updateuserdb", message);
+                if (response.IsSuccessStatusCode)
+                {
+                    Log.Info($"Player registered: {player.Name} (Steam ID: {player.SteamId})");
+                }
+                else
+                {
+                    Log.Info($"Failed to register player: {player.Name} (Steam ID: {player.SteamId}), Status Code: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Info($"Exception during player registration: {ex.Message}");
+            }
+        }
+        
+        private void OnPlayerJoined(IPlayer player)
+        {
+            Log.Info($"player joined");
+            // 비동기 메서드 실행을 Task.Run으로 호출하여 안정성을 보장
+            Task.Run(() => OnPlayerJoinedAsync(player));
         }
 
         private void CustomUpdate()
