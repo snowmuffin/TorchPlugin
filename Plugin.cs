@@ -57,7 +57,6 @@ namespace TorchPlugin
         private ConfigView control;
 
         private TorchSessionManager sessionManager;
-        private MySqlConnection connection;
         private bool initialized;
         private bool failed;
         private Queue<object> damageLogQueue = new Queue<object>();
@@ -80,7 +79,6 @@ namespace TorchPlugin
             Instance = this;
 
             Log.Info("Init");
-            ConnectToDatabase();
             var configPath = Path.Combine(StoragePath, ConfigFileName);
             config = PersistentConfig<PluginConfig>.Load(Log, configPath);
 
@@ -101,26 +99,7 @@ namespace TorchPlugin
 
             initialized = true;
         }
-        public void ConnectToDatabase()
-        {
-            string connectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
-            connection = new MySqlConnection(connectionString);
-            try
-            {
-                connection.Open();
-                Log.Info("MySQL 데이터베이스에 연결되었습니다.");
-                string cmdText = "\r\n            CREATE TABLE IF NOT EXISTS damage_logs (\r\n                steam_id BIGINT NOT NULL,\r\n                total_damage FLOAT NOT NULL,\r\n                PRIMARY KEY (steam_id)\r\n            );\r\n        ";
-                using (MySqlCommand mySqlCommand = new MySqlCommand(cmdText, connection))
-                {
-                    mySqlCommand.ExecuteNonQuery();
-                    Log.Info("테이블이 없을 경우 새로 생성되었습니다.");
-                }
-            }
-            catch (MySqlException ex)
-            {
-                Log.Info("MySQL 연결 오류: " + ex.Message);
-            }
-        }
+  
      
 
         private void SessionStateChanged(ITorchSession session, TorchSessionState newstate)
