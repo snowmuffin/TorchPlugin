@@ -160,6 +160,43 @@ namespace TorchPlugin
                 failed = true;
             }
         }
+        private async Task OnPlayerJoinedAsync(IPlayer player)
+        {
+            Log.Info($"Player joined: {player.Name} (Steam ID: {player.SteamId})");
+            var uploadCall = new
+            {
+                steamid = player.SteamId.ToString(),
+                nickname = player.Name.ToString()
+            };
+
+            try
+            {
+
+                string json = JsonConvert.SerializeObject(uploadCall);
+                var message = new StringContent(json, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/user/updateuserdb", message);
+                if (response.IsSuccessStatusCode)
+                {
+                    Log.Info($"Player registered: {player.Name} (Steam ID: {player.SteamId})");
+                }
+                else
+                {
+                    Log.Info($"Failed to register player: {player.Name} (Steam ID: {player.SteamId}), Status Code: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Info($"Exception during player registration: {ex.Message}");
+            }
+        }
+        
+        private void OnPlayerJoined(IPlayer player)
+        {
+            Log.Info($"player joined");
+            // 비동기 메서드 실행을 Task.Run으로 호출하여 안정성을 보장
+            Task.Run(() => OnPlayerJoinedAsync(player));
+        }
 
         private void CustomUpdate()
         {
