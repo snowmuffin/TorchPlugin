@@ -113,10 +113,12 @@ namespace TorchPlugin
                 case TorchSessionState.Loaded:
                     Log.Debug("Loaded");
                     
+                    session.Managers.GetManager<IMultiplayerManagerBase>().PlayerJoined += OnPlayerJoined;
                     break;
 
                 case TorchSessionState.Unloading:
                     Log.Debug("Unloading");
+                    session.Managers.GetManager<IMultiplayerManagerBase>().PlayerJoined -= OnPlayerJoined;
                     break;
 
                 case TorchSessionState.Unloaded:
