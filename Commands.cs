@@ -155,6 +155,17 @@ namespace TorchPlugin
                 return;
             }
 
+            // 아이템 추가 가능 여부를 확인하기 전에 인벤토리 공간 확인
+            var amount = (VRage.MyFixedPoint)quantity;
+            var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
+
+            if (!inventory.CanItemsBeAdded(amount, itemDefinition.Id))
+            {
+                Respond("Not enough space in your inventory.");
+                return;
+            }
+
+            // 온라인 창고에서 다운로드 시도
             var downloadCall = new { steamid = steamId.ToString(), itemName, quantity };
             var message = new StringContent(JsonConvert.SerializeObject(downloadCall), Encoding.UTF8, "application/json");
 
@@ -182,23 +193,16 @@ namespace TorchPlugin
                     return;
                 }
 
-                var amount = (VRage.MyFixedPoint)quantity;
-                var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
-                if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
-                {
-                    inventory.AddItems(amount, content);
-                    Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
-                }
-                else
-                {
-                    Respond("Not enough space in your inventory.");
-                }
+                // 아이템 다운로드 후 인벤토리에 추가
+                inventory.AddItems(amount, content);
+                Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
             }
             catch (Exception ex)
             {
                 Respond($"An error occurred while accessing the database: {ex.Message}");
             }
         }
+
 
         [Command("cmd uploaditem", "Uploads the specified item from your inventory to online storage")]
         [Permission(MyPromoteLevel.None)]
