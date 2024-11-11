@@ -176,21 +176,18 @@ namespace TorchPlugin
                 }
 
                 var jsonObject = JObject.Parse(await response.Content.ReadAsStringAsync());
+                var responseMessage = (string)jsonObject["message"];
 
-                // 서버 응답에서 message를 로그로 출력
-                string serverMessage = (string)jsonObject["message"];
-                Context.Torch.CurrentSession?.Logger?.Info($"Server Response Message: {serverMessage}");
-
-                if (!(bool)jsonObject["Exist"])
+                if (!(bool)jsonObject["exist"])
                 {
-                    Respond("You have no items in your online storage.");
+                    Respond(responseMessage);
                     return;
                 }
 
                 float availableQuantity = (float)jsonObject["quantity"];
                 if (availableQuantity < quantity)
                 {
-                    Respond($"You only have {availableQuantity}x '{itemName}' in your online storage.");
+                    Respond(responseMessage);
                     return;
                 }
 
@@ -199,7 +196,7 @@ namespace TorchPlugin
                 if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
                 {
                     inventory.AddItems(amount, content);
-                    Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
+                    Respond(responseMessage);
                 }
                 else
                 {
@@ -211,6 +208,7 @@ namespace TorchPlugin
                 Respond($"An error occurred while accessing the database: {ex.Message}");
             }
         }
+
 
         [Command("cmd uploaditem", "Uploads the specified item from your inventory to online storage")]
         [Permission(MyPromoteLevel.None)]
