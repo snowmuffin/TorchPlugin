@@ -176,6 +176,11 @@ namespace TorchPlugin
                 }
 
                 var jsonObject = JObject.Parse(await response.Content.ReadAsStringAsync());
+
+                // 서버 응답에서 message를 로그로 출력
+                string serverMessage = (string)jsonObject["message"];
+                Context.Torch.CurrentSession?.Logger?.Info($"Server Response Message: {serverMessage}");
+
                 if (!(bool)jsonObject["Exist"])
                 {
                     Respond("You have no items in your online storage.");
