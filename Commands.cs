@@ -176,18 +176,9 @@ namespace TorchPlugin
                 }
 
                 var jsonObject = JObject.Parse(await response.Content.ReadAsStringAsync());
-                if (!(bool)jsonObject["Exist"])
-                {
-                    Respond("You have no items in your online storage.");
-                    return;
-                }
 
-                float availableQuantity = (float)jsonObject["quantity"];
-                if (availableQuantity < quantity)
-                {
-                    Respond($"You only have {availableQuantity}x '{itemName}' in your online storage.");
-                    return;
-                }
+
+
 
                 var amount = (VRage.MyFixedPoint)quantity;
                 var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
