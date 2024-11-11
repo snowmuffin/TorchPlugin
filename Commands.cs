@@ -176,18 +176,16 @@ namespace TorchPlugin
                 }
 
                 var jsonObject = JObject.Parse(await response.Content.ReadAsStringAsync());
-                var responseMessage = (string)jsonObject["message"];
-
-                if (!(bool)jsonObject["exist"])
+                if (!(bool)jsonObject["Exist"])
                 {
-                    Respond(responseMessage);
+                    Respond("You have no items in your online storage.");
                     return;
                 }
 
                 float availableQuantity = (float)jsonObject["quantity"];
                 if (availableQuantity < quantity)
                 {
-                    Respond(responseMessage);
+                    Respond($"You only have {availableQuantity}x '{itemName}' in your online storage.");
                     return;
                 }
 
@@ -196,7 +194,7 @@ namespace TorchPlugin
                 if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
                 {
                     inventory.AddItems(amount, content);
-                    Respond(responseMessage);
+                    Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
                 }
                 else
                 {
@@ -208,7 +206,6 @@ namespace TorchPlugin
                 Respond($"An error occurred while accessing the database: {ex.Message}");
             }
         }
-
 
         [Command("cmd uploaditem", "Uploads the specified item from your inventory to online storage")]
         [Permission(MyPromoteLevel.None)]
