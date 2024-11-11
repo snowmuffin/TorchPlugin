@@ -162,6 +162,13 @@ namespace TorchPlugin
                 return;
             }
 
+            var amount = (VRage.MyFixedPoint)quantity;
+            if (!inventory.CanItemsBeAdded(amount, itemDefinition.Id))
+            {
+                Respond("Not enough space in your inventory.");
+                return;
+            }
+
             var downloadCall = new { steamid = steamId.ToString(), itemName, quantity };
             var message = new StringContent(JsonConvert.SerializeObject(downloadCall), Encoding.UTF8, "application/json");
 
@@ -191,17 +198,9 @@ namespace TorchPlugin
                     return;
                 }
 
-                var amount = (VRage.MyFixedPoint)quantity;
                 var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
-                if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
-                {
-                    inventory.AddItems(amount, content);
-                    Respond(responseMessage);
-                }
-                else
-                {
-                    Respond("Not enough space in your inventory.");
-                }
+                inventory.AddItems(amount, content);
+                Respond(responseMessage);
             }
             catch (Exception ex)
             {
