@@ -162,13 +162,6 @@ namespace TorchPlugin
                 return;
             }
 
-            var amount = (VRage.MyFixedPoint)quantity;
-            if (!inventory.CanItemsBeAdded(amount, itemDefinition.Id))
-            {
-                Respond("Not enough space in your inventory.");
-                return;
-            }
-
             var downloadCall = new { steamid = steamId.ToString(), itemName, quantity };
             var message = new StringContent(JsonConvert.SerializeObject(downloadCall), Encoding.UTF8, "application/json");
 
@@ -183,31 +176,36 @@ namespace TorchPlugin
                 }
 
                 var jsonObject = JObject.Parse(await response.Content.ReadAsStringAsync());
-                var responseMessage = (string)jsonObject["message"];
-
-                if (!(bool)jsonObject["exist"])
+                if (!(bool)jsonObject["Exist"])
                 {
-                    Respond(responseMessage);
+                    Respond("You have no items in your online storage.");
                     return;
                 }
 
                 float availableQuantity = (float)jsonObject["quantity"];
                 if (availableQuantity < quantity)
                 {
-                    Respond(responseMessage);
+                    Respond($"You only have {availableQuantity}x '{itemName}' in your online storage.");
                     return;
                 }
 
+                var amount = (VRage.MyFixedPoint)quantity;
                 var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
-                inventory.AddItems(amount, content);
-                Respond(responseMessage);
+                if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
+                {
+                    inventory.AddItems(amount, content);
+                    Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
+                }
+                else
+                {
+                    Respond("Not enough space in your inventory.");
+                }
             }
             catch (Exception ex)
             {
                 Respond($"An error occurred while accessing the database: {ex.Message}");
             }
         }
-
 
         [Command("cmd uploaditem", "Uploads the specified item from your inventory to online storage")]
         [Permission(MyPromoteLevel.None)]
