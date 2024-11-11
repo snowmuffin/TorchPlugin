@@ -176,16 +176,40 @@ namespace TorchPlugin
                 }
 
                 var jsonObject = JObject.Parse(await response.Content.ReadAsStringAsync());
+<<<<<<< HEAD
+                var responseMessage = (string)jsonObject["message"];
 
+                if (!(bool)jsonObject["exist"])
+                {
+                    Respond(responseMessage);
+                    return;
+                }
 
+                float availableQuantity = (float)jsonObject["quantity"];
+                if (availableQuantity < quantity)
+                {
+                    Respond(responseMessage);
+=======
+                if (!(bool)jsonObject["Exist"])
+                {
+                    Respond("You have no items in your online storage.");
+                    return;
+                }
 
+                float availableQuantity = (float)jsonObject["quantity"];
+                if (availableQuantity < quantity)
+                {
+                    Respond($"You only have {availableQuantity}x '{itemName}' in your online storage.");
+>>>>>>> parent of 026ba36 (Update Commands.cs)
+                    return;
+                }
 
                 var amount = (VRage.MyFixedPoint)quantity;
                 var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
                 if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
                 {
                     inventory.AddItems(amount, content);
-                    Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
+                    Respond(responseMessage);
                 }
                 else
                 {
@@ -197,6 +221,7 @@ namespace TorchPlugin
                 Respond($"An error occurred while accessing the database: {ex.Message}");
             }
         }
+
 
         [Command("cmd uploaditem", "Uploads the specified item from your inventory to online storage")]
         [Permission(MyPromoteLevel.None)]
