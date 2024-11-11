@@ -39,7 +39,14 @@ namespace TorchPlugin
 
             if (type != null)
             {
-                MyDefinitionId definitionId = new MyDefinitionId(type, itemName.Replace("ingot_", "").Replace("ore_", ""));
+                // "ingot_" 및 "ore_" 접두사 제거 후 첫 문자를 대문자로 변환
+                string normalizedItemName = itemName.Replace("ingot_", "").Replace("ore_", "");
+                if (!string.IsNullOrEmpty(normalizedItemName))
+                {
+                    normalizedItemName = char.ToUpper(normalizedItemName[0]) + normalizedItemName.Substring(1);
+                }
+
+                MyDefinitionId definitionId = new MyDefinitionId(type, normalizedItemName);
                 if (MyDefinitionManager.Static.TryGetDefinition(definitionId, out MyDefinitionBase definition)
                     && definition is MyPhysicalItemDefinition physicalItemDefinition)
                 {
@@ -155,17 +162,6 @@ namespace TorchPlugin
                 return;
             }
 
-            // 아이템 추가 가능 여부를 확인하기 전에 인벤토리 공간 확인
-            var amount = (VRage.MyFixedPoint)quantity;
-            var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
-
-            if (!inventory.CanItemsBeAdded(amount, itemDefinition.Id))
-            {
-                Respond("Not enough space in your inventory.");
-                return;
-            }
-
-            // 온라인 창고에서 다운로드 시도
             var downloadCall = new { steamid = steamId.ToString(), itemName, quantity };
             var message = new StringContent(JsonConvert.SerializeObject(downloadCall), Encoding.UTF8, "application/json");
 
@@ -193,16 +189,23 @@ namespace TorchPlugin
                     return;
                 }
 
-                // 아이템 다운로드 후 인벤토리에 추가
-                inventory.AddItems(amount, content);
-                Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
+                var amount = (VRage.MyFixedPoint)quantity;
+                var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
+                if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
+                {
+                    inventory.AddItems(amount, content);
+                    Respond($"Successfully downloaded {quantity}x '{itemName}' to your inventory.");
+                }
+                else
+                {
+                    Respond("Not enough space in your inventory.");
+                }
             }
             catch (Exception ex)
             {
                 Respond($"An error occurred while accessing the database: {ex.Message}");
             }
         }
-
 
         [Command("cmd uploaditem", "Uploads the specified item from your inventory to online storage")]
         [Permission(MyPromoteLevel.None)]
