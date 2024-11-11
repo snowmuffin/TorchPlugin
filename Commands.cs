@@ -39,7 +39,14 @@ namespace TorchPlugin
 
             if (type != null)
             {
-                MyDefinitionId definitionId = new MyDefinitionId(type, itemName.Replace("ingot_", "").Replace("ore_", ""));
+                // "ingot_" 및 "ore_" 접두사 제거 후 첫 문자를 대문자로 변환
+                string normalizedItemName = itemName.Replace("ingot_", "").Replace("ore_", "");
+                if (!string.IsNullOrEmpty(normalizedItemName))
+                {
+                    normalizedItemName = char.ToUpper(normalizedItemName[0]) + normalizedItemName.Substring(1);
+                }
+
+                MyDefinitionId definitionId = new MyDefinitionId(type, normalizedItemName);
                 if (MyDefinitionManager.Static.TryGetDefinition(definitionId, out MyDefinitionBase definition)
                     && definition is MyPhysicalItemDefinition physicalItemDefinition)
                 {
