@@ -164,6 +164,11 @@ namespace TorchPlugin
 
             var downloadCall = new { steamid = steamId.ToString(), itemName, quantity };
             var message = new StringContent(JsonConvert.SerializeObject(downloadCall), Encoding.UTF8, "application/json");
+            var amount = (VRage.MyFixedPoint)quantity;
+            if (!inventory.CanItemsBeAdded(amount, itemDefinition.Id))
+            {
+                Respond("Not enough space in your inventory.");
+            }
 
             try
             {
@@ -189,7 +194,6 @@ namespace TorchPlugin
                     return;
                 }
 
-                var amount = (VRage.MyFixedPoint)quantity;
                 var content = (MyObjectBuilder_PhysicalObject)MyObjectBuilderSerializer.CreateNewObject(itemDefinition.Id);
                 if (inventory.CanItemsBeAdded(amount, itemDefinition.Id))
                 {
