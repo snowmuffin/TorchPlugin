@@ -168,6 +168,7 @@ namespace TorchPlugin
             if (!inventory.CanItemsBeAdded(amount, itemDefinition.Id))
             {
                 Respond("Not enough space in your inventory.");
+                return;
             }
 
             try
