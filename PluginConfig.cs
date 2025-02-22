@@ -16,7 +16,7 @@ namespace TorchPlugin
         private string databaseName = "mydatabase";
         private string databaseUser = "root";
         private string databasePassword = "my-secret-pw";
-
+        private string Server_Id = "0";
         [Display(Order = 1, GroupName = "General", Name = "Enable plugin", Description = "Enable the plugin")]
         public bool Enabled
         {
@@ -61,6 +61,12 @@ namespace TorchPlugin
         {
             get => databasePassword;
             set => SetValue(ref databasePassword, value);
+        }
+        [Display(Order = 7, GroupName = "Database Settings", Name = "Database Password", Description = "The password for the MySQL database")]
+        public string ServerId
+        {
+            get => Server_Id;
+            set => SetValue(ref Server_Id, value);
         }
         // TODO: Encapsulate them as properties and define their Display properties
     }

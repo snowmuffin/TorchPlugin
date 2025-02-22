@@ -82,7 +82,7 @@ namespace TorchPlugin
             Log.Info("Init");
             var configPath = Path.Combine(StoragePath, ConfigFileName);
             config = PersistentConfig<PluginConfig>.Load(Log, configPath);
-
+            Log.Info("Init"+ config.Data.ServerId);
             var gameVersionNumber = MyPerGameSettings.BasicGameInfo.GameVersion ?? 0;
             var gameVersion = new StringBuilder(MyBuildNumbers.ConvertBuildNumberFromIntToString(gameVersionNumber)).ToString();
             Common.SetPlugin(this, gameVersion, StoragePath);
@@ -191,11 +191,12 @@ namespace TorchPlugin
                 {
                     return;
                 }
-                double damageToApply = Math.Min(info.Amount, 5000) / 100;
+                double damageToApply = info.Amount/100;
                 var damageLog = new
                 {
                     steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
-                    damage = damageToApply   // 피해량
+                    damage = damageToApply,   // 피해량
+                    server_id = config.Data.ServerId
                 };
 
                 // 큐에 추가 (스레드 안전을 위해 lock 사용)
@@ -284,8 +285,10 @@ namespace TorchPlugin
                     break;
 
                 case TorchSessionState.Loaded:
-                    Log.Debug("Loaded");
+                    Log.Info("Loaded" + config.Data.ServerId);
                     MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, new BeforeDamageApplied(OnEntityDamaged));
+
+
                     session.Managers.GetManager<IMultiplayerManagerBase>().PlayerJoined += OnPlayerJoined;
                     break;
 

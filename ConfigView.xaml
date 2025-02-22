@@ -21,6 +21,9 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <!-- TODO: Add row definitions if you start using new rows -->
         </Grid.RowDefinitions>
 
@@ -35,6 +38,10 @@
         <TextBlock Grid.Row="2" Grid.Column="0" Text="Detect code changes" VerticalAlignment="Center" Margin="5" />
         <CheckBox Grid.Row="2" Grid.Column="1" Name="DetectCodeChanges" IsChecked="{Binding DetectCodeChanges}" Margin="5" />
         <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Text="Enables checking for changes in patched game code (disable this on Proton/Linux)" VerticalAlignment="Center" Margin="5" />
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Server_ID" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Name="Server_ID" Text="{Binding Server_ID}" Margin="5"/>
+        <Button Grid.Row="5" Grid.Column="2" Content="save" Margin="5" Click="SaveConfig_OnClick"></Button>
 
         <!-- TODO: Add UI for your configuration properties, examples:
 
