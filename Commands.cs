@@ -7,6 +7,8 @@ using MySql.Data.MySqlClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sandbox.Definitions;
+using Sandbox.Game.Gui;
+using Sandbox.ModAPI;
 using Shared.Config;
 using Shared.Plugin;
 using Torch.Commands;
@@ -24,7 +26,6 @@ namespace TorchPlugin
         private const string ConnectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
         private static readonly HttpClient httpClient = new HttpClient();
 
-        // Helper Methods
         private void Respond(string message) => Context?.Respond(message);
         private static string Format(bool value) => value ? "Yes" : "No";
 
@@ -39,7 +40,6 @@ namespace TorchPlugin
 
             if (type != null)
             {
-                // "ingot_" 및 "ore_" 접두사 제거 후 첫 문자를 대문자로 변환
                 string normalizedItemName = itemName.Replace("ingot_", "").Replace("ore_", "");
                 if (!string.IsNullOrEmpty(normalizedItemName))
                 {
@@ -55,8 +55,6 @@ namespace TorchPlugin
             }
             return null;
         }
-
-        // Command Methods
 
         [Command("cmd help", "Se_web: Help")]
         [Permission(MyPromoteLevel.None)]
@@ -139,7 +137,43 @@ namespace TorchPlugin
             Config.Enabled = false;
             Info();
         }
+        [Command("cmd updateitem", "Se_web: Disables the plugin")]
+        [Permission(MyPromoteLevel.Admin)]
+        public async Task Patch_web_itemdbAsync()
+        {
+            var items = new List<object>();
 
+            foreach (var def in MyDefinitionManager.Static.GetAllDefinitions())
+            {
+                if (def is MyPhysicalItemDefinition itemDef)
+                {
+                    var item = new
+                    {
+                        Id = itemDef.Id.ToString(),
+                        DisplayName = itemDef.DisplayNameText,
+                        Description = itemDef.DescriptionText,
+                        Icons = itemDef.Icons  // Icons 배열 추가
+                    };
+                    items.Add(item);
+                    MyAPIGateway.Utilities.ShowMessage("Item Info", $"{item.Id} - {item.DisplayName}");
+                }
+            }
+
+            Respond(items.Count == 0
+                ? "Item def not found"
+                : "Items available in your game:\n" + JsonConvert.SerializeObject(items, Formatting.Indented));
+
+            var message = new StringContent(JsonConvert.SerializeObject(items), Encoding.UTF8, "application/json");
+
+            HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/resources/updateitem", message);
+            if (!response.IsSuccessStatusCode)
+            {
+                Respond($"Failed to upload item. Status Code: {response.StatusCode}, Reason: {response.ReasonPhrase}");
+                return;
+            }
+
+            Respond("Successfully updated db item list");
+        }
         [Command("cmd downloaditem", "Downloads the specified item from online storage to your inventory")]
         [Permission(MyPromoteLevel.None)]
         public async Task DownloadItem(string itemName, int quantity = 1)
@@ -288,14 +322,12 @@ namespace TorchPlugin
             {
                 var itemName = item.Content.SubtypeName;
                 var itemType = item.Content.TypeId.ToString();
-                var prefix = itemType.Contains("Ingot") ? "ingot_" : itemType.Contains("Ore") ? "ore_" : string.Empty;
-                items.Add($"{prefix}{itemName} (x{item.Amount})");
+                items.Add($"{item}");
             }
 
             Respond(items.Count == 0 ? "Your inventory is empty." : "Items available in your inventory:\n" + string.Join("\n", items));
         }
 
-        // Validates the item name and quantity
         private bool ValidateCommand(string itemName, int quantity)
         {
             if (Context.Player == null)
