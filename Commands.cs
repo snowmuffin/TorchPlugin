@@ -91,7 +91,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/auth/getUserData", message);
+                HttpResponseMessage response = await httpClient.PostAsync("http://14.39.20.12:4000/api/auth/getUserData", message);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -165,7 +165,7 @@ namespace TorchPlugin
 
             var message = new StringContent(JsonConvert.SerializeObject(items), Encoding.UTF8, "application/json");
 
-            HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/resources/updateitem", message);
+            HttpResponseMessage response = await httpClient.PostAsync("http://14.39.20.12:4000/space-engineers/item/update-items", message);
             if (!response.IsSuccessStatusCode)
             {
                 Respond($"Failed to upload item. Status Code: {response.StatusCode}, Reason: {response.ReasonPhrase}");
