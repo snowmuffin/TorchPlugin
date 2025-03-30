@@ -49,8 +49,7 @@ namespace TorchPlugin
         public IPluginLogger Log => Logger;
 
 
-        public PluginConfig Config => config?.Data;
-        private PersistentConfig<PluginConfig> config;
+        public PluginConfig Config => _config?.Data;
         private static readonly string ConfigFileName = $"{PluginName}.cfg";
 
         // ReSharper disable once UnusedMember.Global
@@ -199,7 +198,7 @@ namespace TorchPlugin
                 {
                     steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
                     damage = damageToApply,   // 피해량
-                    server_id = config.Data.ServerId
+                    server_id = _config.Data.ServerId
                 };
 
                 // 큐에 추가 (스레드 안전을 위해 lock 사용)
@@ -297,7 +296,7 @@ namespace TorchPlugin
                     break;
 
                 case TorchSessionState.Loaded:
-                    Log.Info("Loaded" + config.Data.ServerId);
+                    Log.Info("Loaded" + _config.Data.ServerId);
                     MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, new BeforeDamageApplied(OnEntityDamaged));
 
 
