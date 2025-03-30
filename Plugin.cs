@@ -35,7 +35,7 @@ using VRage.Utils;
 namespace TorchPlugin
 {
     // ReSharper disable once ClassNeverInstantiated.Global
-    public class Plugin : TorchPluginBase, IWpfPlugin, ICommonPlugin
+    public class Plugin : TorchPluginBase, IWpfPlugin
     {
         private static readonly HttpClient httpClient = new HttpClient();
         public const string PluginName = "Se_web";
@@ -49,14 +49,14 @@ namespace TorchPlugin
         public IPluginLogger Log => Logger;
 
 
-        public IPluginConfig Config => config?.Data;
+        public PluginConfig Config => config?.Data;
         private PersistentConfig<PluginConfig> config;
         private static readonly string ConfigFileName = $"{PluginName}.cfg";
 
         // ReSharper disable once UnusedMember.Global
-        public UserControl GetControl() => control ?? (control = new ConfigView());
-        private ConfigView control;
-
+        public UserControl GetControl() => _control ?? (_control = new ConfigView(this));
+         private Persistent<PluginConfig> _config;
+        private ConfigView _control;
         private TorchSessionManager sessionManager;
         private bool initialized;
         private bool failed;
@@ -71,29 +71,13 @@ namespace TorchPlugin
         public override void Init(ITorchBase torch)
         {
             base.Init(torch);
+            SetupConfig();
 
-#if DEBUG
-            // Allow the debugger some time to connect once the plugin assembly is loaded
-            Thread.Sleep(100);
-#endif
 
-            Instance = this;
 
-            Log.Info("Init");
-            var configPath = Path.Combine(StoragePath, ConfigFileName);
-            config = PersistentConfig<PluginConfig>.Load(Log, configPath);
-            Log.Info("Init"+ config.Data.ServerId);
-            var gameVersionNumber = MyPerGameSettings.BasicGameInfo.GameVersion ?? 0;
-            var gameVersion = new StringBuilder(MyBuildNumbers.ConvertBuildNumberFromIntToString(gameVersionNumber)).ToString();
-            Common.SetPlugin(this, gameVersion, StoragePath);
 
-#if USE_HARMONY
-            if (!PatchHelpers.HarmonyPatchAll(Log, new Harmony(Name)))
-            {
-                failed = true;
-                return;
-            }
-#endif
+
+
 
             sessionManager = torch.Managers.GetManager<TorchSessionManager>();
             sessionManager.SessionStateChanged += SessionStateChanged;
@@ -101,7 +85,26 @@ namespace TorchPlugin
             initialized = true;
         }
 
+        private void SetupConfig() {
 
+            var configFile = Path.Combine(StoragePath, "Se_web.cfg");
+
+            try {
+
+                _config = Persistent<PluginConfig>.Load(configFile);
+
+            } catch (Exception e) {
+                Log.Info(e.Message);
+            }
+
+            if (_config?.Data == null) {
+
+                Log.Info("Create Default Config, because none was found!");
+
+                _config = new Persistent<PluginConfig>(configFile, new PluginConfig());
+                Save();
+            }
+        }
         private void OnEntityDamaged(object target, ref MyDamageInformation info)
         {
             if (target == null || info.AttackerId == 0)
@@ -132,7 +135,7 @@ namespace TorchPlugin
                 if (num != 0)
                 {
                     IMyFaction val4 = MyAPIGateway.Session.Factions.TryGetPlayerFaction(num);
-                
+
                     if (val4 == null || !val4.IsEveryoneNpc())
                     {
                         return;
@@ -144,7 +147,7 @@ namespace TorchPlugin
                 MyCharacter val6 = val5;
                 if (val6 != null)
                 {
-                    
+
                     if (val6.ControllerInfo != null)
                     {
                         List<IMyPlayer> list = new List<IMyPlayer>();
@@ -187,11 +190,11 @@ namespace TorchPlugin
                         }
                     }
                 }
-                if(num2==0)
+                if (num2 == 0)
                 {
                     return;
                 }
-                double damageToApply = info.Amount/100;
+                double damageToApply = info.Amount / 100;
                 var damageLog = new
                 {
                     steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
@@ -216,7 +219,14 @@ namespace TorchPlugin
                 }
             }
         }
-
+        public void Save() {
+            try {
+                _config.Save();
+                Log.Info("Configuration Saved.");
+            } catch (IOException e) {
+                Log.Info(e, "Configuration failed to save");
+            }
+        }
         private bool IsSupportedBlock(IMyCubeBlock block)
         {
             string SubtypeName = block.BlockDefinition.SubtypeName;
@@ -227,7 +237,7 @@ namespace TorchPlugin
             string TypeIdStringAttribute = block.BlockDefinition.TypeIdStringAttribute;
             string SubtypeIdAttribute = block.BlockDefinition.SubtypeIdAttribute;
 
-        
+
 
             if (!PointBlock.Contains(TypeIdString))
             {
@@ -258,12 +268,14 @@ namespace TorchPlugin
                 string json = JsonConvert.SerializeObject(batch);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-          
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/damage_logs", content);
+                // 설정에서 API Base URL 가져오기
+                string apiUrl = $"{((PluginConfig)Config).ApiBaseUrl}/damage_logs";
+
+                HttpResponseMessage response = await httpClient.PostAsync(apiUrl, content);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Log.Info($"SendBatchAsync: Damage logs batch successfully sent to Node.js server. Count: {batch.Count}");
+                    Log.Info($"SendBatchAsync: Damage logs batch successfully sent to API. Count: {batch.Count}");
                 }
                 else
                 {
@@ -323,7 +335,7 @@ namespace TorchPlugin
 
         public override void Update()
         {
-        
+
             if (failed)
                 return;
 
@@ -369,7 +381,7 @@ namespace TorchPlugin
                 Log.Info($"Exception during player registration: {ex.Message}");
             }
         }
-        
+
         private void OnPlayerJoined(IPlayer player)
         {
             Log.Info($"player joined");

@@ -12,7 +12,7 @@
 
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" SharedSizeGroup="Labels" />
-            <ColumnDefinition Width="Auto" SharedSizeGroup="Checkboxes" />
+            <ColumnDefinition Width="Auto" SharedSizeGroup="Inputs" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" SharedSizeGroup="Buttons" />
         </Grid.ColumnDefinitions>
@@ -24,7 +24,10 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <!-- TODO: Add row definitions if you start using new rows -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Title -->
@@ -39,23 +42,36 @@
         <CheckBox Grid.Row="2" Grid.Column="1" Name="DetectCodeChanges" IsChecked="{Binding DetectCodeChanges}" Margin="5" />
         <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Text="Enables checking for changes in patched game code (disable this on Proton/Linux)" VerticalAlignment="Center" Margin="5" />
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Server_ID" VerticalAlignment="Center" Margin="5"/>
-        <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Name="Server_ID" Text="{Binding Server_ID}" Margin="5"/>
-        <Button Grid.Row="5" Grid.Column="2" Content="save" Margin="5" Click="SaveConfig_OnClick"></Button>
+        <!-- Server ID -->
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Server ID" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Name="ServerId" Text="{Binding ServerId}" Margin="5"/>
 
-        <!-- TODO: Add UI for your configuration properties, examples:
+        <!-- Database Server -->
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Database Server" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Name="DatabaseServer" Text="{Binding DatabaseServer}" Margin="5"/>
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="Label of String Property" VerticalAlignment="Center" Margin="5"/>
-        <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Name="NameOfStringProperty" Text="{Binding NameOfStringProperty}" Margin="5"/>
+        <!-- Database Name -->
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Database Name" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Name="DatabaseName" Text="{Binding DatabaseName}" Margin="5"/>
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Label of Int Property" VerticalAlignment="Center" Margin="5"/>
-        <TextBox Grid.Row ="4" Grid.Column="1" Grid.ColumnSpan="2" Name="NameOfIntProperty" Text="{Binding NameOfIntProperty}" Margin="5"/>
+        <!-- Database User -->
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="Database User" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Name="DatabaseUser" Text="{Binding DatabaseUser}" Margin="5"/>
 
-        <TextBlock Grid.Row="5" Grid.Column="0" Text="Label of Bool Property" VerticalAlignment="Center" Margin="5"/>
-        <CheckBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2"Name="NameOfBoolProperty" IsChecked="{Binding NameOfBoolProperty}" Margin="5"/>
+        <!-- Database Password -->
+        <TextBlock Grid.Row="7" Grid.Column="0" Text="Database Password" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Name="DatabasePassword" Text="{Binding DatabasePassword}" Margin="5"/>
 
-        <Button Grid.Row="6" Grid.Column="2" Content="Some Button" Margin="5" Click="SomeButton_OnClick"></Button>
+        <!-- Damage Log API URL -->
+        <TextBlock Grid.Row="8" Grid.Column="0" Text="Damage Log API URL" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Name="DamageLogApiUrl" Text="{Binding DamageLogApiUrl}" Margin="5"/>
 
-        -->
+        <!-- API Base URL -->
+        <TextBlock Grid.Row="9" Grid.Column="0" Text="API Base URL" VerticalAlignment="Center" Margin="5"/>
+        <TextBox Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Name="ApiBaseUrl" Text="{Binding ApiBaseUrl}" Margin="5"/>
+
+        <!-- Save Button -->
+        <Button Grid.Row="10" Grid.Column="2" Content="Save" Margin="5" Click="SaveButton_OnClick"></Button>
+
     </Grid>
 </UserControl>

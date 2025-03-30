@@ -1,6 +1,5 @@
+using System.Windows;
 using System.Windows.Controls;
-using Shared.Plugin;
-
 namespace TorchPlugin
 {
     // ReSharper disable once UnusedType.Global
@@ -11,13 +10,13 @@ namespace TorchPlugin
         public ConfigView()
         {
             InitializeComponent();
-            DataContext = Common.Config;
         }
-
-        private void SaveConfig_OnClick(object sender, System.Windows.RoutedEventArgs e)
-        {
-            
-
+        public ConfigView(Plugin plugin) : this() {
+            Plugin = plugin;
+            DataContext = plugin.Config;
+        }
+        private void SaveButton_OnClick(object sender, RoutedEventArgs e) {
+            Plugin.Save();
         }
     }
 }
