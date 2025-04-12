@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -39,7 +40,6 @@ namespace TorchPlugin
         private static readonly HttpClient httpClient = new HttpClient();
         public const string PluginName = "Se_web";
         public static Plugin Instance { get; private set; }
-        public List<string> PointBlock = new List<string> { "MyObjectBuilder_Beacon", "MyObjectBuilder_InteriorTurret", "MyObjectBuilder_LargeMissileTurret", "MyObjectBuilder_SmallMissileLauncher", "MyObjectBuilder_SmallMissileLauncherReload", "MyObjectBuilder_LargeGatlingTurret", "MyObjectBuilder_SmallGatlingGun" };
         public long Tick { get; private set; }
         private const ushort MessageId = 5363;
         private ConcurrentDictionary<long, Logic> m_cachedBlocks = new ConcurrentDictionary<long, Logic>();
@@ -56,10 +56,21 @@ namespace TorchPlugin
         private TorchSessionManager sessionManager;
         private bool initialized;
         private bool failed;
-        private Queue<object> damageLogQueue = new Queue<object>();
+        private readonly ConcurrentQueue<object> damageLogQueue = new ConcurrentQueue<object>();
         private readonly object queueLock = new object();
 
         private readonly Commands commands = new Commands();
+
+        private readonly HashSet<string> PointBlock = new HashSet<string>
+        {
+            "MyObjectBuilder_Beacon",
+            "MyObjectBuilder_InteriorTurret",
+            "MyObjectBuilder_LargeMissileTurret",
+            "MyObjectBuilder_SmallMissileLauncher",
+            "MyObjectBuilder_SmallMissileLauncherReload",
+            "MyObjectBuilder_LargeGatlingTurret",
+            "MyObjectBuilder_SmallGatlingGun"
+        };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         public override void Init(ITorchBase torch)
@@ -96,113 +107,88 @@ namespace TorchPlugin
         }
         private void OnEntityDamaged(object target, ref MyDamageInformation info)
         {
-            if (target == null || info.AttackerId == 0)
+            if (target == null || info.AttackerId == 0 || info.IsDeformation)
             {
                 return;
             }
+
             try
             {
-                if (info.IsDeformation)
-                {
-                    return;
-                }
                 IMyEntity entityById = MyAPIGateway.Entities.GetEntityById(info.AttackerId);
                 if (entityById == null)
                 {
                     return;
                 }
-                IMySlimBlock val = (IMySlimBlock)((target is IMySlimBlock) ? target : null);
-                IMyCubeGrid val2 = (IMyCubeGrid)((target is IMyCubeGrid) ? target : null);
-                IMyCubeBlock val3 = ((val != null) ? val.FatBlock : null);
-                if (val3 == null || !IsSupportedBlock(val3))
+
+                if (!(target is IMySlimBlock slimBlock) || slimBlock.FatBlock == null || !IsSupportedBlock(slimBlock.FatBlock))
                 {
                     return;
                 }
-                long num = 0L;
-                num = ((IMyCubeBlock)val3).OwnerId;
-                if (num != 0)
-                {
-                    IMyFaction val4 = MyAPIGateway.Session.Factions.TryGetPlayerFaction(num);
 
-                    if (val4 == null || !val4.IsEveryoneNpc())
+                long ownerId = slimBlock.FatBlock.OwnerId;
+                if (ownerId != 0)
+                {
+                    IMyFaction faction = MyAPIGateway.Session.Factions.TryGetPlayerFaction(ownerId);
+                    if (faction == null || !faction.IsEveryoneNpc())
                     {
                         return;
                     }
                 }
-                ulong num2 = 0uL;
-                long num3 = 0L;
-                MyCharacter val5 = (MyCharacter)(object)((entityById is MyCharacter) ? entityById : null);
-                MyCharacter val6 = val5;
-                if (val6 != null)
-                {
-                    if (val6.ControllerInfo != null)
-                    {
-                        List<IMyPlayer> list = new List<IMyPlayer>();
-                        MyAPIGateway.Players.GetPlayers(list, (Func<IMyPlayer, bool>)null);
-                        foreach (IMyPlayer item in list)
-                        {
-                            if (item.Character == val6)
-                            {
-                                num2 = item.SteamUserId;
-                                break;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    IMyCubeGrid val7 = (IMyCubeGrid)(object)((entityById is IMyCubeGrid) ? entityById : null);
-                    if (val7 != null)
-                    {
-                        num3 = ((val7.BigOwners.Count > 0) ? val7.BigOwners[0] : 0);
-                        num2 = MyAPIGateway.Players.TryGetSteamId(num3);
-                    }
-                    else
-                    {
-                        IMyCubeBlock val8 = (IMyCubeBlock)(object)((entityById is IMyCubeBlock) ? entityById : null);
-                        if (val8 != null)
-                        {
-                            num3 = ((IMyCubeBlock)val8).OwnerId;
-                            num2 = MyAPIGateway.Players.TryGetSteamId(num3);
-                        }
-                        else
-                        {
-                            IMyGunBaseUser val9 = (IMyGunBaseUser)(object)((entityById is IMyGunBaseUser) ? entityById : null);
-                            if (val9 == null)
-                            {
-                                return;
-                            }
-                            num3 = val9.OwnerId;
-                            num2 = MyAPIGateway.Players.TryGetSteamId(num3);
-                        }
-                    }
-                }
-                if (num2 == 0)
+
+                ulong steamId = GetSteamIdFromEntity(entityById);
+                if (steamId == 0)
                 {
                     return;
                 }
+
                 double damageToApply = info.Amount / 100;
                 var damageLog = new
                 {
-                    steam_id = num2.ToString(),
+                    steam_id = steamId.ToString(),
                     damage = damageToApply,
                     server_id = _config.Data.ServerId
                 };
 
-                lock (queueLock)
-                {
-                    damageLogQueue.Enqueue(damageLog);
-                }
+                damageLogQueue.Enqueue(damageLog);
             }
             catch (Exception ex)
             {
-                Log.Info("Exception: " + ex.Message);
-                Log.Info("Stack Trace: " + ex.StackTrace);
-                if (ex.InnerException != null)
-                {
-                    Log.Info("Inner Exception: " + ex.InnerException.Message);
-                    Log.Info("Inner Stack Trace: " + ex.InnerException.StackTrace);
-                }
+                LogException(ex);
+            }
+        }
+
+        private ulong GetSteamIdFromEntity(IMyEntity entity)
+        {
+            switch (entity)
+            {
+                case MyCharacter character when character.ControllerInfo != null:
+                    var players = new List<IMyPlayer>();
+                    MyAPIGateway.Players.GetPlayers(players);
+                    return players.FirstOrDefault(p => p.Character == character)?.SteamUserId ?? 0;
+
+                case IMyCubeGrid grid:
+                    long ownerId = grid.BigOwners.FirstOrDefault();
+                    return MyAPIGateway.Players.TryGetSteamId(ownerId);
+
+                case IMyCubeBlock block:
+                    return MyAPIGateway.Players.TryGetSteamId(block.OwnerId);
+
+                case IMyGunBaseUser gunBaseUser:
+                    return MyAPIGateway.Players.TryGetSteamId(gunBaseUser.OwnerId);
+
+                default:
+                    return 0;
+            }
+        }
+
+        private void LogException(Exception ex)
+        {
+            Log.Info("Exception: " + ex.Message);
+            Log.Info("Stack Trace: " + ex.StackTrace);
+            if (ex.InnerException != null)
+            {
+                Log.Info("Inner Exception: " + ex.InnerException.Message);
+                Log.Info("Inner Stack Trace: " + ex.InnerException.StackTrace);
             }
         }
         public void Save()
@@ -219,27 +205,19 @@ namespace TorchPlugin
         }
         private bool IsSupportedBlock(IMyCubeBlock block)
         {
-            string SubtypeName = block.BlockDefinition.SubtypeName;
-            string SubtypeId = block.BlockDefinition.SubtypeId;
-
-            string TypeIdString = block.BlockDefinition.TypeIdString;
-            string TypeIdStringAttribute = block.BlockDefinition.TypeIdStringAttribute;
-            string SubtypeIdAttribute = block.BlockDefinition.SubtypeIdAttribute;
-
-            if (!PointBlock.Contains(TypeIdString))
-            {
-                return false;
-            }
-
-            return true;
+            return PointBlock.Contains(block.BlockDefinition.TypeIdString);
         }
         private async Task SendDamageLogsBatchAsync()
         {
-            List<object> batch;
-            lock (queueLock)
+            if (damageLogQueue.IsEmpty)
             {
-                batch = new List<object>(damageLogQueue);
-                damageLogQueue.Clear();
+                return;
+            }
+
+            var batch = new List<object>();
+            while (damageLogQueue.TryDequeue(out var log))
+            {
+                batch.Add(log);
             }
 
             if (batch.Count == 0)
@@ -251,25 +229,29 @@ namespace TorchPlugin
             {
                 string json = JsonConvert.SerializeObject(batch);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-
-                string apiUrl = $"{((PluginConfig)Config).ApiBaseUrl}/damage_logs";
+                string apiUrl = $"{Config.ApiBaseUrl}/damage_logs";
 
                 HttpResponseMessage response = await httpClient.PostAsync(apiUrl, content);
-
-                if (response.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
                 {
-                    Log.Info($"SendBatchAsync: Damage logs batch successfully sent to API. Count: {batch.Count}");
+                    Log.Info($"Failed to send damage logs batch. Status Code: {response.StatusCode}");
+                    foreach (var log in batch)
+                    {
+                        damageLogQueue.Enqueue(log); // Re-enqueue failed logs
+                    }
                 }
                 else
                 {
-                    Log.Info($"SendBatchAsync: Failed to send damage logs batch. Status Code: {response.StatusCode}");
+                    Log.Info($"Damage logs batch successfully sent. Count: {batch.Count}");
                 }
             }
             catch (Exception ex)
             {
                 Log.Info("Exception while sending damage logs batch: " + ex.Message);
-                Log.Info("Stack Trace: " + ex.StackTrace);
+                foreach (var log in batch)
+                {
+                    damageLogQueue.Enqueue(log); // Re-enqueue failed logs
+                }
             }
         }
         private void SessionStateChanged(ITorchSession session, TorchSessionState newstate)
@@ -319,13 +301,15 @@ namespace TorchPlugin
         public override void Update()
         {
             if (failed)
+            {
                 return;
+            }
 
             try
             {
                 CustomUpdate();
                 Tick++;
-                Task.Run(() => SendDamageLogsBatchAsync());
+                _ = SendDamageLogsBatchAsync(); // Fire-and-forget without blocking
             }
             catch (Exception e)
             {
