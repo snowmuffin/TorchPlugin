@@ -165,8 +165,11 @@ namespace TorchPlugin
                 : "Items available in your game:\n" + JsonConvert.SerializeObject(items, Formatting.Indented));
 
             var message = new StringContent(JsonConvert.SerializeObject(items), Encoding.UTF8, "application/json");
+            var url = $"{Config.ApiBaseUrl}/space-engineers/item/update-items";
 
-            HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/space-engineers/item/update-items", message);
+            Respond($"Sending request to URL: {url}");
+
+            HttpResponseMessage response = await httpClient.PostAsync(url, message);
             if (!response.IsSuccessStatusCode)
             {
                 Respond($"Failed to upload item. Status Code: {response.StatusCode}, Reason: {response.ReasonPhrase}");
