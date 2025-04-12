@@ -61,7 +61,7 @@ namespace TorchPlugin
             set => SetValue(ref databasePassword, value);
         }
 
-        [Display(Order = 7, GroupName = "Database Settings", Name = "Database Password", Description = "The password for the MySQL database")]
+        [Display(Order = 7, GroupName = "Database Settings", Name = "Server Id", Description = "The server ID")]
         public string ServerId
         {
             get => Server_Id;
@@ -75,7 +75,7 @@ namespace TorchPlugin
             set => SetValue(ref damageLogApiUrl, value);
         }
 
-        [Display(Order = 8, GroupName = "API Settings", Name = "API Base URL", Description = "The base URL of the API server")]
+        [Display(Order = 9, GroupName = "API Settings", Name = "API Base URL", Description = "The base URL of the API server")]
         public string ApiBaseUrl
         {
             get => apiBaseUrl;

@@ -34,7 +34,6 @@ using VRage.Utils;
 
 namespace TorchPlugin
 {
-    // ReSharper disable once ClassNeverInstantiated.Global
     public class Plugin : TorchPluginBase, IWpfPlugin
     {
         private static readonly HttpClient httpClient = new HttpClient();
@@ -48,13 +47,11 @@ namespace TorchPlugin
         private static readonly IPluginLogger Logger = new PluginLogger("Se_web");
         public IPluginLogger Log => Logger;
 
-
         public PluginConfig Config => _config?.Data;
         private static readonly string ConfigFileName = $"{PluginName}.cfg";
 
-        // ReSharper disable once UnusedMember.Global
         public UserControl GetControl() => _control ?? (_control = new ConfigView(this));
-         private Persistent<PluginConfig> _config;
+        private Persistent<PluginConfig> _config;
         private ConfigView _control;
         private TorchSessionManager sessionManager;
         private bool initialized;
@@ -62,8 +59,6 @@ namespace TorchPlugin
         private Queue<object> damageLogQueue = new Queue<object>();
         private readonly object queueLock = new object();
 
-
-        // ReSharper disable once UnusedMember.Local
         private readonly Commands commands = new Commands();
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -72,32 +67,27 @@ namespace TorchPlugin
             base.Init(torch);
             SetupConfig();
 
-
-
-
-
-
-
             sessionManager = torch.Managers.GetManager<TorchSessionManager>();
             sessionManager.SessionStateChanged += SessionStateChanged;
 
             initialized = true;
         }
 
-        private void SetupConfig() {
-
+        private void SetupConfig()
+        {
             var configFile = Path.Combine(StoragePath, "Se_web.cfg");
 
-            try {
-
+            try
+            {
                 _config = Persistent<PluginConfig>.Load(configFile);
-
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 Log.Info(e.Message);
             }
 
-            if (_config?.Data == null) {
-
+            if (_config?.Data == null)
+            {
                 Log.Info("Create Default Config, because none was found!");
 
                 _config = new Persistent<PluginConfig>(configFile, new PluginConfig());
@@ -119,7 +109,6 @@ namespace TorchPlugin
                 IMyEntity entityById = MyAPIGateway.Entities.GetEntityById(info.AttackerId);
                 if (entityById == null)
                 {
-
                     return;
                 }
                 IMySlimBlock val = (IMySlimBlock)((target is IMySlimBlock) ? target : null);
@@ -146,7 +135,6 @@ namespace TorchPlugin
                 MyCharacter val6 = val5;
                 if (val6 != null)
                 {
-
                     if (val6.ControllerInfo != null)
                     {
                         List<IMyPlayer> list = new List<IMyPlayer>();
@@ -196,12 +184,11 @@ namespace TorchPlugin
                 double damageToApply = info.Amount / 100;
                 var damageLog = new
                 {
-                    steam_id = num2.ToString(),   // 예시로, 공격자의 ID를 사용
-                    damage = damageToApply,   // 피해량
+                    steam_id = num2.ToString(),
+                    damage = damageToApply,
                     server_id = _config.Data.ServerId
                 };
 
-                // 큐에 추가 (스레드 안전을 위해 lock 사용)
                 lock (queueLock)
                 {
                     damageLogQueue.Enqueue(damageLog);
@@ -218,11 +205,15 @@ namespace TorchPlugin
                 }
             }
         }
-        public void Save() {
-            try {
+        public void Save()
+        {
+            try
+            {
                 _config.Save();
                 Log.Info("Configuration Saved.");
-            } catch (IOException e) {
+            }
+            catch (IOException e)
+            {
                 Log.Info(e, "Configuration failed to save");
             }
         }
@@ -231,25 +222,19 @@ namespace TorchPlugin
             string SubtypeName = block.BlockDefinition.SubtypeName;
             string SubtypeId = block.BlockDefinition.SubtypeId;
 
-
             string TypeIdString = block.BlockDefinition.TypeIdString;
             string TypeIdStringAttribute = block.BlockDefinition.TypeIdStringAttribute;
             string SubtypeIdAttribute = block.BlockDefinition.SubtypeIdAttribute;
 
-
-
             if (!PointBlock.Contains(TypeIdString))
             {
-
                 return false;
             }
-
 
             return true;
         }
         private async Task SendDamageLogsBatchAsync()
         {
-
             List<object> batch;
             lock (queueLock)
             {
@@ -267,7 +252,7 @@ namespace TorchPlugin
                 string json = JsonConvert.SerializeObject(batch);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                // 설정에서 API Base URL 가져오기
+
                 string apiUrl = $"{((PluginConfig)Config).ApiBaseUrl}/damage_logs";
 
                 HttpResponseMessage response = await httpClient.PostAsync(apiUrl, content);
@@ -298,7 +283,6 @@ namespace TorchPlugin
                 case TorchSessionState.Loaded:
                     Log.Info("Loaded" + _config.Data.ServerId);
                     MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, new BeforeDamageApplied(OnEntityDamaged));
-
 
                     session.Managers.GetManager<IMultiplayerManagerBase>().PlayerJoined += OnPlayerJoined;
                     break;
@@ -334,7 +318,6 @@ namespace TorchPlugin
 
         public override void Update()
         {
-
             if (failed)
                 return;
 
@@ -361,11 +344,10 @@ namespace TorchPlugin
 
             try
             {
-
                 string json = JsonConvert.SerializeObject(uploadCall);
                 var message = new StringContent(json, Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/user/updateuserdb", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{((PluginConfig)Config).ApiBaseUrl}/api/user/updateuserdb", message);
                 if (response.IsSuccessStatusCode)
                 {
                     Log.Info($"Player registered: {player.Name} (Steam ID: {player.SteamId})");
@@ -384,13 +366,11 @@ namespace TorchPlugin
         private void OnPlayerJoined(IPlayer player)
         {
             Log.Info($"player joined");
-            // 비동기 메서드 실행을 Task.Run으로 호출하여 안정성을 보장
             Task.Run(() => OnPlayerJoinedAsync(player));
         }
 
         private void CustomUpdate()
         {
-            // TODO: Put your update processing here. It is called on every simulation frame!
             PatchHelpers.PatchUpdates();
         }
     }

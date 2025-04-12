@@ -11,6 +11,7 @@ using Sandbox.Game.Gui;
 using Sandbox.ModAPI;
 using Shared.Config;
 using Shared.Plugin;
+using Torch;
 using Torch.Commands;
 using Torch.Commands.Permissions;
 using VRage.Game;
@@ -22,10 +23,10 @@ namespace TorchPlugin
     public class Commands : CommandModule
     {
         // Fields
-        private static IPluginConfig Config => Common.Config;
-        private const string ConnectionString = "Server=localhost;Database=mydatabase;Uid=root;Pwd=my-secret-pw;";
         private static readonly HttpClient httpClient = new HttpClient();
-
+        private static string ApiBaseUrl => Plugin.Instance.Config.ApiBaseUrl;
+        public PluginConfig Config => _config?.Data;
+        private Persistent<PluginConfig> _config;
         private void Respond(string message) => Context?.Respond(message);
         private static string Format(bool value) => value ? "Yes" : "No";
 
@@ -91,7 +92,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync("http://14.39.20.12:4000/api/auth/getUserData", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/api/auth/getUserData", message);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -152,7 +153,7 @@ namespace TorchPlugin
                         Id = itemDef.Id.ToString(),
                         DisplayName = itemDef.DisplayNameText,
                         Description = itemDef.DescriptionText,
-                        Icons = itemDef.Icons  // Icons 배열 추가
+                        Icons = itemDef.Icons
                     };
                     items.Add(item);
                     MyAPIGateway.Utilities.ShowMessage("Item Info", $"{item.Id} - {item.DisplayName}");
@@ -165,7 +166,7 @@ namespace TorchPlugin
 
             var message = new StringContent(JsonConvert.SerializeObject(items), Encoding.UTF8, "application/json");
 
-            HttpResponseMessage response = await httpClient.PostAsync("http://14.39.20.12:4000/space-engineers/item/update-items", message);
+            HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/space-engineers/item/update-items", message);
             if (!response.IsSuccessStatusCode)
             {
                 Respond($"Failed to upload item. Status Code: {response.StatusCode}, Reason: {response.ReasonPhrase}");
@@ -207,7 +208,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/resources/download", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/api/resources/download", message);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -282,7 +283,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:3000/api/resources/upload", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/api/resources/upload", message);
 
                 if (!response.IsSuccessStatusCode)
                 {

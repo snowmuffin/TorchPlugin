@@ -1,7 +1,4 @@
-// Warning: Some assembly references could not be resolved automatically. This might lead to incorrect decompilation of some parts,
-// for ex. property getter/setter access. To get optimal decompilation results, please manually add the missing references to the list of loaded assemblies.
-// Se_web, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
-// TorchPlugin.Logic
+
 using System;
 using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI;
@@ -61,8 +58,7 @@ namespace TorchPlugin
 
 		private void InitStorage()
 		{
-			//IL_001a: Unknown result type (might be due to invalid IL or missing references)
-			//IL_0024: Expected O, but got Unknown
+
 			if (base.Entity.Storage == null)
 			{
 				base.Entity.Storage = (MyModStorageComponentBase)new MyModStorageComponent();
