@@ -331,7 +331,7 @@ namespace TorchPlugin
                 string json = JsonConvert.SerializeObject(uploadCall);
                 var message = new StringContent(json, Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await httpClient.PostAsync($"{((PluginConfig)Config).ApiBaseUrl}/api/user/updateuserdb", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{((PluginConfig)Config).ApiBaseUrl}/user/updateuserdb", message);
                 if (response.IsSuccessStatusCode)
                 {
                     Log.Info($"Player registered: {player.Name} (Steam ID: {player.SteamId})");
