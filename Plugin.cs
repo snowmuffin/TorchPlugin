@@ -35,7 +35,7 @@ using VRage.Utils;
 
 namespace TorchPlugin
 {
-    public class Plugin : TorchPluginBase, IWpfPlugin
+    public sealed class Plugin : TorchPluginBase, IWpfPlugin
     {
         private static readonly HttpClient httpClient = new HttpClient();
         public const string PluginName = "Se_web";

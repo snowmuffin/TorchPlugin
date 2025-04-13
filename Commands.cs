@@ -22,11 +22,8 @@ namespace TorchPlugin
 {
     public class Commands : CommandModule
     {
-        // Fields
+        public Plugin Plugin => (Plugin)Context.Plugin;
         private static readonly HttpClient httpClient = new HttpClient();
-        private static string ApiBaseUrl => Plugin.Instance.Config.ApiBaseUrl;
-        public PluginConfig Config => _config?.Data;
-        private Persistent<PluginConfig> _config;
         private void Respond(string message) => Context?.Respond(message);
         private static string Format(bool value) => value ? "Yes" : "No";
 
@@ -92,7 +89,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/api/auth/getUserData", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{Plugin.Config.ApiBaseUrl}/space-engineers/auth/getUserData", message);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -121,13 +118,13 @@ namespace TorchPlugin
         }
         [Command("cmd info", "Se_web: Prints the current settings")]
         [Permission(MyPromoteLevel.None)]
-        public void Info() => Respond($"{Plugin.PluginName} plugin is enabled: {Format(Config.Enabled)}");
+        public void Info() => Respond($"{Plugin.PluginName} plugin is enabled: {Format(Plugin.Config.Enabled)}");
 
         [Command("cmd enable", "Se_web: Enables the plugin")]
         [Permission(MyPromoteLevel.Admin)]
         public void Enable()
         {
-            Config.Enabled = true;
+            Plugin.Config.Enabled = true;
             Info();
         }
 
@@ -135,7 +132,7 @@ namespace TorchPlugin
         [Permission(MyPromoteLevel.Admin)]
         public void Disable()
         {
-            Config.Enabled = false;
+            Plugin.Config.Enabled = false;
             Info();
         }
         [Command("cmd updateitem", "Se_web: Disables the plugin")]
@@ -166,7 +163,7 @@ namespace TorchPlugin
 
             var message = new StringContent(JsonConvert.SerializeObject(items), Encoding.UTF8, "application/json");
 
-            HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/space-engineers/item/update-items", message);
+            HttpResponseMessage response = await httpClient.PostAsync($"{Plugin.Config.ApiBaseUrl}/space-engineers/item/update-items", message);
             if (!response.IsSuccessStatusCode)
             {
                 Respond($"Failed to upload item. Status Code: {response.StatusCode}, Reason: {response.ReasonPhrase}");
@@ -208,7 +205,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/api/resources/download", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{Plugin.Config.ApiBaseUrl}/space-engineers/item/download", message);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -283,7 +280,7 @@ namespace TorchPlugin
 
             try
             {
-                HttpResponseMessage response = await httpClient.PostAsync($"{Config.ApiBaseUrl}/api/resources/upload", message);
+                HttpResponseMessage response = await httpClient.PostAsync($"{Plugin.Config.ApiBaseUrl}/space-engineers/item/upload", message);
 
                 if (!response.IsSuccessStatusCode)
                 {
